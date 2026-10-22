@@ -156,6 +156,12 @@
       color: #2e7d32;
       border: 1px solid #c8e6c9;
     }
+    .status-msg.warning {
+      display: block;
+      background-color: #fff8e1;
+      color: #8d6e00;
+      border: 1px solid #ffe082;
+    }
     .loading-spinner {
       display: inline-block;
       width: 12px;
@@ -456,7 +462,8 @@
 
       google.script.run
         .withSuccessHandler(function(res) {
-          exibirMensagem("✔️ " + res, "success");
+          var pendente = String(res).indexOf("⚠️") === 0;
+          exibirMensagem(pendente ? res : "✔️ " + res, pendente ? "warning" : "success");
           btn.disabled = false;
           btn.textContent = "Registrar na Planilha";
           carregarDadosColaborador();

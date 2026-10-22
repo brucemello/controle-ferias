@@ -33,6 +33,9 @@ function notificarProximasFerias() {
     const dataFim = new Date(dados[i][10]);    // Coluna K: Data Fim Programação
     const saldo = dados[i][11];               // Coluna L: Saldo
 
+    // Não anuncia férias pendentes de aprovação, reprovadas ou em ajuste
+    if (/PENDENTE|REPROVADO|AJUSTE SOLICITADO/i.test(String(situacao))) continue;
+
     if (colaborador && !isNaN(dataInicio.getTime()) && dataInicio >= hoje) {
       const diferencaDias = Math.ceil((dataInicio - hoje) / (1000 * 60 * 60 * 24));
 

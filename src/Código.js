@@ -49,6 +49,7 @@ function onOpen() {
     .addItem('🔗 Sincronizar Histórico Antigo com Agenda (Lote)', 'publicarHistoricoAntigoNoCalendario') 
     .addSeparator()
     .addItem('Verificar e Criar Estrutura de Abas (Seguro)', 'inicializarTodasAbas')
+    .addItem('✅ Configurar Aprovação de Conflitos', 'configurarAprovacaoFerias')
     .addToUi();
 }
 
@@ -210,8 +211,9 @@ function abManual() {
 }
 
 // Pega dinamicamente a planilha aberta no navegador
+// No App da Web de aprovação não há planilha aberta: planilha_() usa o ID salvo
 function obterPlanilhaAtiva() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  return planilha_();
 }
 
 // =========================================================================================
@@ -652,9 +654,17 @@ function salvarSugestaoDev(dados) {
       "Painel Formulário Dev" 
     ];
     sheetFerias.appendRow(novaLinhaFerias);
-    sheetFerias.getRange(sheetFerias.getLastRow(), 1, 1, 17).setBackground("#fffde7");
+    var linhaNova = sheetFerias.getLastRow();
+    sheetFerias.getRange(linhaNova, 1, 1, 17).setBackground("#fffde7");
     
     if (opcao !== "" && opcao.includes("MVT")) atualizarAbaMVTComoUtilizado(dados.nome);
+    
+    // CHECAGEM DE CONFLITO: se houver sobreposição, vai para aprovação do gestor
+    // e só é espelhado no Calendar depois de aprovado
+    var resultadoConflito = processarLancamentoFerias(linhaNova);
+    if (resultadoConflito.status === "pendente") {
+      return resultadoConflito.mensagem;
+    }
     
     var tituloFeriasNovas = "Ausência: " + nomeExibicaoCalendario + " [Férias" + (opcao ? " + " + opcao : "") + "]";
     var ultimaDataAusente = dados.dataRetornoAfastamento ? dados.dataRetornoAfastamento : dados.dataFim;
@@ -790,7 +800,11 @@ function importarDadosPorIdPlanilha(idOrigem) {
 // =========================================================================================
 // ATUALIZAÇÃO DO CONTROLE DE CONFLITOS COM DISPARO AUTOMÁTICO DE E-MAIL
 // =========================================================================================
-function atualizarAbaControleConflitos() {
+function atualizarAbaControleConflitosSemEmail_() {
+  atualizarAbaControleConflitos(false);
+}
+
+function atualizarAbaControleConflitos(enviarEmail) {
   var ss = obterPlanilhaAtiva();
   var sheetFerias = ss.getSheetByName("Controle Consolidado - 2026");
   var sheetConflito = ss.getSheetByName("Controle de Conflitos") || ss.insertSheet("Controle de Conflitos");
@@ -819,7 +833,8 @@ function atualizarAbaControleConflitos() {
       var situacaoUpper = situacao.toUpperCase();
       
       // Ignora datas passadas ou ausências finalizadas/pagas
-      if (dFimMs < hojeMs || situacaoUpper.includes("FINALIZADA") || situacaoUpper.includes("PAGA")) {
+      if (dFimMs < hojeMs || situacaoUpper.includes("FINALIZADA") || situacaoUpper.includes("PAGA") ||
+          situacaoUpper.indexOf("REPROVADO") === 0 || situacaoUpper.indexOf("AJUSTE SOLICITADO") === 0) {
         continue;
       }
       
@@ -911,7 +926,7 @@ function atualizarAbaControleConflitos() {
 
   // 4. ENVIO AUTOMÁTICO DE E-MAIL
   // Se houver e-mail válido configurado na constante EMAIL_LIDER, dispara automaticamente
-  if (typeof EMAIL_LIDER !== "undefined" && EMAIL_LIDER && !EMAIL_LIDER.includes("seu_email_aqui")) {
+  if (enviarEmail !== false && typeof EMAIL_LIDER !== "undefined" && EMAIL_LIDER && !EMAIL_LIDER.includes("seu_email_aqui")) {
     enviarEmailConflitosLider(EMAIL_LIDER);
   }
 }
