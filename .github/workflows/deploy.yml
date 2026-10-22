@@ -1,0 +1,39 @@
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Proteção contra pasta vazia
+        run: |
+          if [ ! -f src/appsscript.json ]; then
+            echo "src/appsscript.json não encontrado. Deploy cancelado para não apagar o projeto online."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install -g @google/clasp
+
+      - name: Credenciais do clasp
+        env:
+          CLASPRC: ${{ secrets.CLASPRC_JSON }}
+        run: echo "$CLASPRC" > ~/.clasprc.json
+
+      - name: Apontar para o projeto
+        run: echo "{\"scriptId\":\"${{ secrets.SCRIPT_ID }}\",\"rootDir\":\"src\"}" > .clasp.json
+
+      - run: clasp push --force
+
+      - run: clasp deploy -i "${{ secrets.DEPLOYMENT_ID }}" -d "Deploy ${{ github.sha }}"

@@ -1,0 +1,43 @@
+name: Baixar do Apps Script
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install -g @google/clasp
+
+      - name: Credenciais do clasp
+        env:
+          CLASPRC: ${{ secrets.CLASPRC_JSON }}
+        run: echo "$CLASPRC" > ~/.clasprc.json
+
+      - name: Baixar código
+        run: |
+          mkdir -p src
+          echo "{\"scriptId\":\"${{ secrets.SCRIPT_ID }}\",\"rootDir\":\"src\"}" > .clasp.json
+          clasp pull
+          ls -la src
+
+      - name: Commitar
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          if git diff --cached --quiet; then
+            echo "Nada mudou."
+          else
+            git commit -m "Sincroniza código do Apps Script"
+            git push
+          fi
