@@ -24,7 +24,7 @@ const CONFIG_APROVACAO = {
   abaAprovacoes: "Aprovações",
   // Situações que NÃO entram na checagem de conflito (sem acento, maiúsculas)
   situacoesIgnoradas: ["FINALIZADA", "PAGA", "REPROVADO", "AJUSTE SOLICITADO"],
-  janelaBuscaSugestaoDias: 120
+  janelaBuscaSugestaoDias: 180
 };
 
 // E-mail do gestor vem de EMAIL_LIDER (Código.js); lido em tempo de execução
