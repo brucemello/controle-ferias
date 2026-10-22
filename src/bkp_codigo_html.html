@@ -1,0 +1,524 @@
+//10/09/26 - 09h:29
+
+
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f6f9;
+      color: #333;
+    }
+    .panel-header {
+      background-color: #1e5c99;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      font-size: 16px;
+      border-radius: 0 0 4px 4px;
+    }
+    .panel-header i {
+      cursor: pointer;
+    }
+    .tabs-bar {
+      display: flex;
+      justify-content: space-around;
+      background-color: #ffffff;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .tab-button {
+      flex: 1;
+      padding: 12px 5px;
+      text-align: center;
+      background: none;
+      border: none;
+      font-size: 12px;
+      font-weight: bold;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s ease;
+    }
+    .tab-button.active {
+      color: #1e5c99;
+      border-bottom-color: #1e5c99;
+    }
+    .tab-button i {
+      margin-right: 5px;
+    }
+    .tab-content {
+      padding: 20px;
+      display: none;
+    }
+    .tab-content.active {
+      display: block;
+    }
+    .saldo-card {
+      background-color: #e3f2fd;
+      border: 1px solid #bbdefb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 15px;
+      font-size: 13px;
+    }
+    .saldo-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+    .saldo-row:last-child {
+      margin-bottom: 0;
+    }
+    .saldo-value {
+      font-weight: bold;
+      background-color: #e8f5e9;
+      color: #1b5e20;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+    .saldo-value.zero {
+      background-color: #ffebee;
+      color: #c62828;
+    }
+    .form-group {
+      margin-bottom: 15px;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 5px;
+      text-transform: uppercase;
+    }
+    select, input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #cccccc;
+      border-radius: 6px;
+      font-size: 13px;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+    select:focus, input:focus {
+      border-color: #1e5c99;
+      outline: none;
+    }
+    .read-only-box {
+      background-color: #f1f5f9;
+      padding: 12px;
+      border-radius: 6px;
+      border: 1px solid #e2e8f0;
+      font-weight: bold;
+      color: #0f172a;
+      font-size: 14px;
+    }
+    .btn-submit {
+      width: 100%;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s;
+      margin-top: 10px;
+    }
+    .btn-submit:hover {
+      background-color: #1b5e20;
+    }
+    .status-msg {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-align: center;
+      display: none;
+    }
+    .status-msg.error {
+      display: block;
+      background-color: #ffebee;
+      color: #c62828;
+      border: 1px solid #ffcdd2;
+    }
+    .status-msg.success {
+      display: block;
+      background-color: #e8f5e9;
+      color: #2e7d32;
+      border: 1px solid #c8e6c9;
+    }
+    .loading-spinner {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 5px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .divider {
+      margin: 25px 0 15px 0;
+      border-top: 1px solid #e0e0e0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="panel-header">
+    <span>Painel Integrado de Gestão - 2026</span>
+    <i class="fa-solid fa-xmark" onclick="google.script.host.close()"></i>
+  </div>
+
+  <div class="tabs-bar">
+    <button class="tab-button active" id="btn-sincro" onclick="alternarAba('sincro')">
+      <i class="fa-solid fa-sync"></i>Sincronizar
+    </button>
+    <button class="tab-button" id="btn-solicitar" onclick="alternarAba('solicitar')">
+      <i class="fa-solid fa-lightbulb"></i>Solicitar Ausência
+    </button>
+    <button class="tab-button" id="btn-manual" onclick="alternarAba('manual')">
+      <i class="fa-solid fa-book"></i>Manual de Uso
+    </button>
+  </div>
+
+  <!-- CONTEÚDO: SINCRONIZAR -->
+  <div id="sincro" class="tab-content active">
+    <h3 style="margin-top:0;">1. Importar de Planilha Externa</h3>
+    <p style="font-size: 13px;">Insira o ID da planilha do Google que contém os dados que deseja importar para a planilha de controle atual:</p>
+    
+    <div class="form-group">
+      <label>ID da Planilha de Origem:</label>
+      <input type="text" id="idPlanilhaOrigem" placeholder="Cole o ID da planilha aqui...">
+    </div>
+    
+    <button class="btn-submit" style="background-color: #e65100; margin-bottom: 15px;" id="btnImportar" onclick="importarPlanilhaExterna()">
+      <i class="fa-solid fa-file-import" style="margin-right: 5px;"></i> Importar Dados da Planilha
+    </button>
+
+    <div class="divider"></div>
+
+    <h3>2. Enviar Lote para o Calendar</h3>
+    <p style="font-size: 13px;">Grave na agenda corporativa todos os registros locais que possuem o status literal "AGENDADOS".</p>
+    <button class="btn-submit" style="background-color: #1e5c99;" id="btnSincronizarLote" onclick="executarSincroLote()">
+      Sincronizar Lote "AGENDADOS"
+    </button>
+
+    <div id="sincroStatusMessage" class="status-msg"></div>
+  </div>
+
+  <!-- CONTEÚDO: SOLICITAR AUSÊNCIA -->
+  <div id="solicitar" class="tab-content">
+    <div class="saldo-card">
+      <div class="saldo-row">
+        <span>Colaborador Selecionado:</span>
+        <strong id="labelColaborador">Nenhum</strong>
+      </div>
+      <div class="saldo-row">
+        <span>GIFT DAY:</span>
+        <span class="saldo-value" id="saldoGift">Saldo: 0d</span>
+      </div>
+      <div class="saldo-row">
+        <span>RESET DAY:</span>
+        <span class="saldo-value" id="saldoReset">Saldo: 1d</span>
+      </div>
+      <div class="saldo-row">
+        <span>MVT (Trimestrais):</span>
+        <span class="saldo-value zero" id="saldoMVT">Saldo: 0</span>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Colaborador:</label>
+      <select id="colaborador" onchange="carregarDadosColaborador()">
+        <option value="">-- Selecione o Colaborador --</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Finalidade do Lançamento:</label>
+      <select id="finalidade">
+        <option value="Lançar ou Emendar Férias Coletivas/Padrão">Lançar ou Emendar Férias Coletivas/Padrão</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Benefício Corporativo:</label>
+      <select id="opcaoAfastamento">
+        <option value="">-- Selecione o Benefício (Opcional se Férias > 0) --</option>
+        <option value="GiftDay">GiftDay</option>
+        <option value="MVT">MVT</option>
+        <option value="ResetDay">ResetDay</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>Data de Início:</label>
+      <input type="date" id="dataInicio" onchange="calcularRetorno()">
+    </div>
+
+    <div class="form-group">
+      <label>Quantidade de Dias de Férias:</label>
+      <input type="number" id="quantidadeDias" value="15" min="0" max="30" oninput="calcularRetorno()">
+    </div>
+
+    <div class="form-group">
+      <label>Retorno das Férias:</label>
+      <div class="read-only-box" id="retornoExibicao">--/--/----</div>
+    </div>
+
+    <button class="btn-submit" id="btnSalvar" onclick="enviarDadosFormulario()">
+      Registrar na Planilha
+    </button>
+
+    <div id="statusMessage" class="status-msg"></div>
+  </div>
+
+  <!-- CONTEÚDO: MANUAL DE USO -->
+  <div id="manual" class="tab-content">
+    <h3 style="margin-top: 0;">Guia de Uso Rápido</h3>
+    <ul style="font-size: 13px; padding-left: 15px; line-height: 1.6;">
+      <li style="margin-bottom: 10px;"><strong>Importar Dados:</strong> Cole o ID da planilha externa no campo da aba <em>Sincronizar</em> e clique em importar. Os dados preencherão o Sheets atual.</li>
+      <li style="margin-bottom: 10px;"><strong>Férias Padrão:</strong> Insira o colaborador, as datas, a quantidade de dias, e mantenha o "Benefício Corporativo" em branco. O sistema registrará sem deduzir saldos.</li>
+      <li style="margin-bottom: 10px;"><strong>Folgas Avulsas (0 Dias):</strong> Se for tirar apenas 1 dia de folga do benefício, coloque 0 na quantidade de dias de férias e selecione qual benefício está usando.</li>
+    </ul>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      carregarListaColaboradores();
+    });
+
+    function carregarListaColaboradores() {
+      google.script.run
+        .withSuccessHandler(popularColaboradores)
+        .withFailureHandler(function(err) {
+          console.error("Erro ao carregar colaboradores:", err);
+          exibirMensagem("❌ Erro ao buscar colaboradores: " + err.message, "error");
+        })
+        .buscarNomesTime();
+    }
+
+    function popularColaboradores(nomes) {
+      var select = document.getElementById("colaborador");
+      select.innerHTML = '<option value="">-- Selecione o Colaborador --</option>';
+
+      if (!nomes || nomes.length === 0) {
+        exibirMensagem("⚠️ Nenhum colaborador encontrado na aba 'TIME'.", "error");
+        return;
+      }
+
+      nomes.forEach(function(nome) {
+        var opt = document.createElement("option");
+        opt.value = nome;
+        opt.textContent = nome;
+        select.appendChild(opt);
+      });
+    }
+
+    function alternarAba(abaId) {
+      var contents = document.getElementsByClassName("tab-content");
+      for (var i = 0; i < contents.length; i++) {
+        contents[i].classList.remove("active");
+      }
+      var buttons = document.getElementsByClassName("tab-button");
+      for (var j = 0; j < buttons.length; j++) {
+        buttons[j].classList.remove("active");
+      }
+      document.getElementById(abaId).classList.add("active");
+      document.getElementById("btn-" + abaId).classList.add("active");
+    }
+
+    function carregarDadosColaborador() {
+      var nome = document.getElementById("colaborador").value;
+      if (!nome) return;
+      
+      document.getElementById("labelColaborador").textContent = nome;
+      google.script.run.withSuccessHandler(function(saldos) {
+        // Atualiza GiftDay
+        var giftLabel = document.getElementById("saldoGift");
+        giftLabel.textContent = "Saldo: " + saldos.giftSaldo + "d";
+        giftLabel.className = saldos.giftSaldo > 0 ? "saldo-value" : "saldo-value zero";
+
+        // Atualiza ResetDay
+        var resetLabel = document.getElementById("saldoReset");
+        resetLabel.textContent = "Saldo: " + saldos.resetSaldo + "d";
+        resetLabel.className = saldos.resetSaldo > 0 ? "saldo-value" : "saldo-value zero";
+
+        // Atualiza MVT
+        var mvtLabel = document.getElementById("saldoMVT");
+        mvtLabel.textContent = "Saldo: " + saldos.mvtSaldo;
+        mvtLabel.className = saldos.mvtSaldo > 0 ? "saldo-value" : "saldo-value zero";
+      }).consultarSaldosColaborador(nome);
+    }
+
+    function calcularRetorno() {
+      var dataIniStr = document.getElementById("dataInicio").value;
+      var qtdDias = parseInt(document.getElementById("quantidadeDias").value, 10);
+      var divRetorno = document.getElementById("retornoExibicao");
+
+      if (!dataIniStr || isNaN(qtdDias)) {
+        divRetorno.textContent = "--/--/----";
+        return;
+      }
+
+      var data = new Date(dataIniStr + "T00:00:00");
+      
+      if (qtdDias === 0) {
+        data.setDate(data.getDate() + 1);
+      } else {
+        data.setDate(data.getDate() + qtdDias);
+      }
+
+      var dia = String(data.getDate()).padStart(2, '0');
+      var mes = String(data.getMonth() + 1).padStart(2, '0');
+      var ano = data.getFullYear();
+
+      divRetorno.textContent = dia + "/" + mes + "/" + ano;
+    }
+
+    function exibirMensagem(texto, tipo) {
+      var msgBox = document.getElementById("statusMessage");
+      msgBox.textContent = texto;
+      msgBox.className = "status-msg " + tipo;
+    }
+
+    function exibirMensagemSincro(texto, tipo) {
+      var msgBox = document.getElementById("sincroStatusMessage");
+      msgBox.textContent = texto;
+      msgBox.className = "status-msg " + tipo;
+    }
+
+    function enviarDadosFormulario() {
+      var colaborador = document.getElementById("colaborador").value;
+      var dataInicio = document.getElementById("dataInicio").value;
+      var quantidadeDias = parseInt(document.getElementById("quantidadeDias").value, 10);
+      var opcaoAfastamento = document.getElementById("opcaoAfastamento").value;
+      var btn = document.getElementById("btnSalvar");
+
+      if (!colaborador) {
+        exibirMensagem("❌ Erro: Selecione um colaborador.", "error");
+        return;
+      }
+      if (!dataInicio) {
+        exibirMensagem("❌ Erro: Selecione a data de início.", "error");
+        return;
+      }
+      if (isNaN(quantidadeDias) || quantidadeDias < 0) {
+        exibirMensagem("❌ Erro: Insira uma quantidade válida de dias.", "error");
+        return;
+      }
+
+      if (quantidadeDias === 0 && (!opcaoAfastamento || opcaoAfastamento === "")) {
+        exibirMensagem("❌ Erro: Para lançar uma folga (0 dias), escolha um benefício corporativo.", "error");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner"></span> Salvando...';
+      exibirMensagem("Processando registro e integrando ao Google Agenda...", "success");
+
+      var dataRetornoIso = "";
+      var textoRetorno = document.getElementById("retornoExibicao").textContent;
+      if (textoRetorno && textoRetorno.includes("/")) {
+        dataRetornoIso = textoRetorno.split("/").reverse().join("-");
+      } else {
+        dataRetornoIso = dataInicio;
+      }
+
+      var payload = {
+        nome: colaborador,
+        dataInicio: dataInicio,
+        dataFim: dataInicio,
+        quantidadeDias: quantidadeDias,
+        opcaoAfastamento: opcaoAfastamento,
+        quantidadeDiasBeneficio: quantidadeDias === 0 ? 1 : 0,
+        dataRetornoAfastamento: dataRetornoIso
+      };
+
+      if (quantidadeDias > 0) {
+        var dEnd = new Date(dataInicio + "T00:00:00");
+        dEnd.setDate(dEnd.getDate() + quantidadeDias - 1);
+        payload.dataFim = dEnd.getFullYear() + "-" + String(dEnd.getMonth() + 1).padStart(2, '0') + "-" + String(dEnd.getDate()).padStart(2, '0');
+      }
+
+      google.script.run
+        .withSuccessHandler(function(res) {
+          exibirMensagem("✔️ " + res, "success");
+          btn.disabled = false;
+          btn.textContent = "Registrar na Planilha";
+          carregarDadosColaborador();
+        })
+        .withFailureHandler(function(err) {
+          exibirMensagem("❌ Erro: " + err.message, "error");
+          btn.disabled = false;
+          btn.textContent = "Registrar na Planilha";
+        })
+        .salvarSugestaoDev(payload);
+    }
+
+    function importarPlanilhaExterna() {
+      var idPlanilha = document.getElementById("idPlanilhaOrigem").value.trim();
+      var btn = document.getElementById("btnImportar");
+
+      if (!idPlanilha) {
+        exibirMensagemSincro("❌ Erro: Por favor, insira o ID da planilha de origem.", "error");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner"></span> Importando...';
+      exibirMensagemSincro("Conectando à planilha externa e trazendo dados...", "success");
+
+      google.script.run
+        .withSuccessHandler(function(resposta) {
+          exibirMensagemSincro("✔️ " + resposta, "success");
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-file-import" style="margin-right: 5px;"></i> Importar Dados da Planilha';
+          document.getElementById("idPlanilhaOrigem").value = "";
+        })
+        .withFailureHandler(function(err) {
+          exibirMensagemSincro("❌ Erro na importação: " + err.message, "error");
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-file-import" style="margin-right: 5px;"></i> Importar Dados da Planilha';
+        })
+        .importarDadosPorIdPlanilha(idPlanilha);
+    }
+
+    function executarSincroLote() {
+      var btn = document.getElementById("btnSincronizarLote");
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner"></span> Sincronizando...';
+      exibirMensagemSincro("Iniciando sincronização de registros em massa...", "success");
+
+      google.script.run
+        .withSuccessHandler(function() {
+          exibirMensagemSincro("✔️ Sincronização em lote finalizada com sucesso!", "success");
+          btn.disabled = false;
+          btn.textContent = 'Sincronizar Lote "AGENDADOS"';
+        })
+        .withFailureHandler(function(err) {
+          exibirMensagemSincro("❌ Falha na sincronização: " + err.message, "error");
+          btn.disabled = false;
+          btn.textContent = 'Sincronizar Lote "AGENDADOS"';
+        })
+        .publicarHistoricoAntigoNoCalendario();
+    }
+  </script>
+</body>
+</html>
