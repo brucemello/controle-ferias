@@ -385,8 +385,10 @@
           <div class="card sinc-card">
             <h3><span class="ic" style="background:#fde7d4;color:#c25700"><i class="fa-solid fa-file-import"></i></span>Importar da planilha do RH</h3>
             <p>Traz a programação oficial do RH e marca como <b>AGENDADOS</b> as sugestões lançadas pelos devs que o RH confirmou.</p>
-            <div class="field" style="margin-bottom:10px"><label>ID da planilha de origem</label>
-              <div class="row"><input id="sIdRH" placeholder="Cole o ID da planilha do RH…"><button class="btn btn-orange" id="bImp" onclick="acaoSinc('imp')"><i class="fa-solid fa-file-import"></i> Importar</button></div></div>
+            <div class="field" style="margin-bottom:10px"><label>De onde importar</label>
+              <div class="seg" style="margin-bottom:10px"><button type="button" id="mAutoBtn" class="on" onclick="setModoRh('auto')"><i class="fa-solid fa-wand-magic-sparkles"></i> Exportação mais recente</button><button type="button" id="mFixoBtn" onclick="setModoRh('fixo')"><i class="fa-solid fa-hashtag"></i> ID fixo</button></div>
+              <div id="boxAuto" style="background:#f6f7fa;border-radius:10px;padding:10px 12px;font-size:12px;color:var(--muted);margin-bottom:10px">Procurando a última planilha <b>Férias_Férias_Tabela</b> no Drive…</div>
+              <div class="row"><input id="sIdRH" class="hide" placeholder="Cole o ID da planilha do RH…"><button class="btn btn-orange" id="bImp" onclick="acaoSinc('imp')" style="flex:1"><i class="fa-solid fa-file-import"></i> Importar agora</button></div></div>
             <div class="msg" id="mImp"></div>
           </div>
 
@@ -404,7 +406,7 @@
             <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px">
               <div>
                 <p style="margin-bottom:6px">Quando ligada, roda <b>todo dia entre <span id="sHora">7</span>h e <span id="sHora2">8</span>h</b>, sem ninguém abrir a planilha:</p>
-                <ol class="steps"><li>importa a planilha do RH (o ID acima);</li><li>publica na agenda o que estiver AGENDADOS e ainda não espelhado;</li><li>atualiza a aba Controle de Conflitos.</li></ol>
+                <ol class="steps"><li>importa do RH (a exportação mais recente do Looker ou o ID fixo, conforme escolhido acima);</li><li>publica na agenda o que estiver AGENDADOS e ainda não espelhado;</li><li>atualiza a aba Controle de Conflitos.</li></ol>
                 <p style="margin-top:8px">Se algo falhar, você recebe um e-mail. Lançamentos feitos pelo painel ou por aqui já vão para a agenda na hora (ou depois da aprovação, se houver conflito).</p>
                 <p id="sSoGestor" class="hide" style="color:#8a6100"><i class="fa-solid fa-lock"></i> Só o gestor pode ligar ou desligar.</p>
               </div>
@@ -831,11 +833,22 @@ function salvar(){
 }
 
 // ---------- sincronizar ----------
-var SINC=null;
+var SINC=null, modoRh="auto";
+function setModoRh(m){
+  modoRh=m;
+  document.getElementById("mAutoBtn").classList.toggle("on",m==="auto");
+  document.getElementById("mFixoBtn").classList.toggle("on",m==="fixo");
+  document.getElementById("boxAuto").classList.toggle("hide",m!=="auto");
+  document.getElementById("sIdRH").classList.toggle("hide",m!=="fixo");
+}
 function carregarSinc(){
   google.script.run.withSuccessHandler(function(st){
     SINC=st;
     var inp=document.getElementById("sIdRH"); if(!inp.value) inp.value=st.idRH||"";
+    setModoRh(st.modo||"auto");
+    document.getElementById("boxAuto").innerHTML = st.exportacao
+      ? '<i class="fa-solid fa-file-excel" style="color:#188038"></i> Vai usar: <b style="color:var(--ink)">'+esc(st.exportacao.nome)+'</b>, exportada em <b style="color:var(--ink)">'+esc(st.exportacao.criada)+'</b>.<br>Para atualizar, exporte de novo a tabela do Looker Studio (⋮ → Exportar → Google Planilhas).'
+      : '<i class="fa-solid fa-circle-exclamation" style="color:#b06000"></i> Nenhuma planilha <b>Férias_Férias_Tabela</b> encontrada no Drive. Exporte a tabela do Looker Studio (⋮ → Exportar → Google Planilhas).';
     var sw=document.getElementById("sAuto"); sw.checked=st.automatico; sw.disabled=!st.podeConfigurar;
     setTxt("sAutoTxt", st.automatico? "Ligada" : "Desligada");
     setTxt("sHora", st.hora); setTxt("sHora2", st.hora+1);
@@ -850,7 +863,7 @@ function acaoSinc(qual){
     cal:{btn:"bCal",msg:"mCal",fn:"sincronizarCalendarDashboard",txt:"Publicando na agenda…"},
     conf:{btn:"bConf",msg:"mCal",fn:"atualizarConflitosDashboard",txt:"Atualizando…"}
   }[qual];
-  if(qual==="imp" && !cfg.arg.trim()){ mostrarMsg(cfg.msg,"err","❌ Cole o ID da planilha do RH."); return; }
+  if(qual==="imp" && modoRh==="fixo" && !cfg.arg.trim()){ mostrarMsg(cfg.msg,"err","❌ Cole o ID da planilha do RH."); return; }
   var b=document.getElementById(cfg.btn), html=b.innerHTML;
   b.disabled=true; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> '+cfg.txt;
   var r=google.script.run.withSuccessHandler(function(res){
@@ -858,7 +871,7 @@ function acaoSinc(qual){
     }).withFailureHandler(function(e){
       b.disabled=false; b.innerHTML=html; mostrarMsg(cfg.msg,"err","❌ "+e.message);
     });
-  if(qual==="imp") r[cfg.fn](cfg.arg); else r[cfg.fn]();
+  if(qual==="imp") r[cfg.fn](cfg.arg, modoRh); else r[cfg.fn]();
 }
 function alternarAuto(){
   var sw=document.getElementById("sAuto"), ligar=sw.checked;

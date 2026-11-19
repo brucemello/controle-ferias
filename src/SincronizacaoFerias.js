@@ -7,8 +7,44 @@
 const SINC_CONFIG = {
   idRhPadrao: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE", // mesmo padrão de importarDadosPorIdPlanilha
   horaAutomatica: 7, // a rotina diária roda entre 7h e 8h
-  funcaoAutomatica: "sincronizacaoAutomatica"
+  funcaoAutomatica: "sincronizacaoAutomatica",
+  // Nome das planilhas geradas pelo "Exportar > Google Planilhas" do Looker Studio
+  tituloExportacao: "Férias_Férias_Tabela"
 };
+
+// Modo "auto": usa a exportação do Looker mais recente do Drive.
+// Modo "fixo": usa sempre o ID informado.
+function modoRh_() {
+  return PropertiesService.getScriptProperties().getProperty("RH_MODO") || "auto";
+}
+
+// Planilha "Férias_Férias_Tabela..." mais recente visível para quem roda o script
+function exportacaoMaisRecente_() {
+  const q = 'title contains "' + SINC_CONFIG.tituloExportacao + '" and mimeType = "application/vnd.google-apps.spreadsheet" and trashed = false';
+  const it = DriveApp.searchFiles(q);
+  let melhor = null;
+  while (it.hasNext()) {
+    const f = it.next();
+    if (!melhor || f.getDateCreated() > melhor.getDateCreated()) melhor = f;
+  }
+  if (!melhor) return null;
+  return {
+    id: melhor.getId(),
+    nome: melhor.getName(),
+    criada: Utilities.formatDate(melhor.getDateCreated(), tz_(), "dd/MM/yyyy HH:mm")
+  };
+}
+
+// Decide de qual planilha importar
+function idRhParaImportar_() {
+  if (modoRh_() === "auto") {
+    const ex = exportacaoMaisRecente_();
+    if (!ex) throw new Error("Nenhuma planilha '" + SINC_CONFIG.tituloExportacao + "' encontrada no Drive. Exporte a tabela do Looker Studio para o Google Planilhas.");
+    return ex;
+  }
+  const id = PropertiesService.getScriptProperties().getProperty("ID_PLANILHA_RH") || SINC_CONFIG.idRhPadrao;
+  return { id: id, nome: "ID fixo", criada: "" };
+}
 
 function obterStatusSincronizacao() {
   vincularPlanilha_();
@@ -18,7 +54,11 @@ function obterStatusSincronizacao() {
   try { ultima = JSON.parse(props.getProperty("SINC_ULTIMA") || "null"); } catch (e) {}
   let usuario = "";
   try { usuario = Session.getActiveUser().getEmail(); } catch (e) {}
+  let exportacao = null;
+  try { exportacao = exportacaoMaisRecente_(); } catch (e) {}
   return {
+    modo: modoRh_(),
+    exportacao: exportacao,
     idRH: props.getProperty("ID_PLANILHA_RH") || SINC_CONFIG.idRhPadrao,
     automatico: !!gatilho,
     hora: SINC_CONFIG.horaAutomatica,
@@ -27,11 +67,18 @@ function obterStatusSincronizacao() {
   };
 }
 
-function importarRhDashboard(idRH) {
-  idRH = String(idRH || "").trim();
-  if (!idRH) throw new Error("Informe o ID da planilha do RH.");
-  PropertiesService.getScriptProperties().setProperty("ID_PLANILHA_RH", idRH);
-  const res = importarDadosPorIdPlanilha(idRH);
+// modo: "auto" (exportação mais recente) ou "fixo" (usa idRH)
+function importarRhDashboard(idRH, modo) {
+  const props = PropertiesService.getScriptProperties();
+  props.setProperty("RH_MODO", modo === "fixo" ? "fixo" : "auto");
+  if (modo === "fixo") {
+    idRH = String(idRH || "").trim();
+    if (!idRH) throw new Error("Informe o ID da planilha do RH.");
+    props.setProperty("ID_PLANILHA_RH", idRH);
+  }
+  const origem = idRhParaImportar_();
+  const res = String(importarDadosPorIdPlanilha(origem.id)).replace(/\n/g, " ") +
+    (modo === "fixo" ? "" : " (origem: " + origem.nome + " de " + origem.criada + ")");
   registrarUltimaSinc_("Importação manual", res);
   return res;
 }
@@ -68,10 +115,11 @@ function configurarSincronizacaoAutomatica(ativar) {
 function sincronizacaoAutomatica() {
   const etapas = [];
   const erros = [];
-  const idRH = PropertiesService.getScriptProperties().getProperty("ID_PLANILHA_RH") || SINC_CONFIG.idRhPadrao;
-
-  try { etapas.push(String(importarDadosPorIdPlanilha(idRH)).replace(/\n/g, " ")); }
-  catch (e) { erros.push("Importação do RH: " + e.message); }
+  try {
+    const origem = idRhParaImportar_();
+    etapas.push(String(importarDadosPorIdPlanilha(origem.id)).replace(/\n/g, " ") +
+      (origem.criada ? " (" + origem.nome + " de " + origem.criada + ")" : ""));
+  } catch (e) { erros.push("Importação do RH: " + e.message); }
 
   try { etapas.push("Agenda: " + publicarLoteCalendario_() + " evento(s) novo(s)."); }
   catch (e) { erros.push("Envio para o Calendar: " + e.message); }
