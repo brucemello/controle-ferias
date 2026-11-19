@@ -71,6 +71,16 @@ function verificarSetup() {
   add("aviso", tem("notificarProximasFerias"),
     tem("notificarProximasFerias") ? "Ligado: todo dia às " + HORA_AVISO_DIARIO + "h para " + (emailsAviso_() || "(sem destinatários)") + (webhookChat_() ? " + Chat" : "") + "."
       : "Desligado.", { opcional: true });
+  let semAdm = [];
+  try {
+    const adm = {};
+    const abaAdm = planilha_().getSheetByName("Admisssão");
+    if (abaAdm && abaAdm.getLastRow() > 1) abaAdm.getRange(2, 1, abaAdm.getLastRow() - 1, 2).getValues().forEach(r => { if (r[0] && parseData_(r[1])) adm[normalizar_(r[0])] = 1; });
+    semAdm = pessoas.filter(n => !adm[normalizar_(n)]);
+  } catch (e) {}
+  add("beneficios", pessoas.length > 0 && semAdm.length === 0,
+    !pessoas.length ? "Cadastre as pessoas primeiro." : semAdm.length ? semAdm.length + " pessoa(s) sem data de admissão." : "Todos com data de admissão.",
+    { opcional: true });
   add("abertura", tem("gatilhoAberturaAutomatica") || tem("abrirDashboard"),
     tem("gatilhoAberturaAutomatica") || tem("abrirDashboard") ? "O dashboard abre sozinho ao abrir a planilha." : "Desligada: abra pelo menu Apoio Gestão.", { opcional: true });
 

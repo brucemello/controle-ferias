@@ -291,6 +291,14 @@
   .acoes .btn{padding:8px 13px;font-size:12px;width:auto}
   .btn-out{background:#fff;border:1px solid var(--line);color:var(--ink)}
   .tag-op{font-size:10px;font-weight:700;color:var(--muted);background:#eef0f4;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+  .bf-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 4px 3px 9px;font-size:11px;font-weight:700;margin:2px 4px 2px 0;border:1px solid var(--line);background:#fff;cursor:pointer;white-space:nowrap}
+  .bf-chip.usado{background:#eef0f4;color:var(--muted);text-decoration:line-through}
+  .bf-chip.livre{background:var(--teal-l);color:#0f766e;border-color:#a7e9df}
+  .bf-chip b{font-weight:800}
+  .bf-chip .x{border:0;background:transparent;color:inherit;cursor:pointer;font-size:11px;padding:0 3px}
+  .bf-add{display:inline-flex;gap:4px;align-items:center;margin-top:3px}
+  .bf-add select,.bf-add input{padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:11.5px}
+  table.t td input[type=date]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12px;background:#fbfcfe}
   .loading{position:fixed;inset:0;background:rgba(238,241,246,.85);display:grid;place-items:center;z-index:50;font-weight:600;color:var(--muted)}
   .loading i{font-size:26px;color:var(--teal);margin-bottom:8px;display:block;text-align:center}
   .hide{display:none!important}
@@ -311,6 +319,7 @@
       <li data-view="timeline"><i class="fa-solid fa-bars-staggered"></i>Linha do tempo</li>
       <li data-view="conflitos"><i class="fa-solid fa-triangle-exclamation"></i>Conflitos <span class="count hide" id="navConf">0</span></li>
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
+      <li data-view="benef"><i class="fa-solid fa-gift"></i>Benefícios</li>
       <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
       <li data-view="config"><i class="fa-solid fa-gear"></i>Configuração</li>
       <li data-view="setup"><i class="fa-solid fa-list-check"></i>Primeiros passos <span class="count hide" id="navSetup">0</span></li>
@@ -498,6 +507,25 @@
         </div>
       </section>
 
+      <!-- BENEFÍCIOS -->
+      <section class="view" id="v-benef">
+        <div class="card" style="margin-bottom:14px;display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted)">
+          <span><i class="fa-solid fa-gift" style="color:#d49b16"></i> <b style="color:var(--ink)">GiftDay</b>: 2, 3, 4 ou 5 dias no ano em que a pessoa completa 5, 10, 15 ou 20 anos de casa. Calculado pela <b>data de admissão</b>.</span>
+          <span><i class="fa-solid fa-bed" style="color:var(--blue)"></i> <b style="color:var(--ink)">ResetDay</b>: 1 dia de descanso por ano para todos. Renova em 1º de janeiro.</span>
+          <span><i class="fa-solid fa-medal" style="color:var(--purple)"></i> <b style="color:var(--ink)">MVT</b>: cadastre aqui cada MVT ganho (mês/ano). Clique no MVT para marcar se já foi usado.</span>
+        </div>
+        <div class="card">
+          <table class="t">
+            <thead><tr><th>Colaborador</th><th>Admissão</th><th>Tempo de casa</th><th>GiftDay <span id="bfAno"></span></th><th>ResetDay <span id="bfAno2"></span></th><th style="min-width:260px">MVT</th></tr></thead>
+            <tbody id="tbBenef"><tr><td colspan="6">Carregando…</td></tr></tbody>
+          </table>
+          <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+            <button class="btn btn-main" id="bfSalvar" style="width:auto;padding:11px 24px" onclick="salvarBenef()"><i class="fa-solid fa-floppy-disk"></i> Salvar benefícios</button>
+            <div class="msg" id="bfMsg" style="margin:0;flex:1"></div>
+          </div>
+        </div>
+      </section>
+
       <!-- SINCRONIZAR -->
       <section class="view" id="v-sinc">
         <div class="sinc-grid">
@@ -601,11 +629,11 @@ function carregar(){
 function renderTudo(){
   if(!D) return;
   document.getElementById("subtitulo").textContent = "Hoje é "+SEMLONGO[HOJE.getDay()]+", "+HOJE.getDate()+" de "+MESES[HOJE.getMonth()]+" de "+HOJE.getFullYear();
-  renderGeral(); renderEquipe(); renderCalendario(); renderTimeline(); renderConflitos(); atualizarPrevia();
+  renderGeral(); renderEquipe(); renderCalendario(); renderTimeline(); renderConflitos(); atualizarPrevia(); renderBenef();
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos",benef:"Benefícios"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
@@ -613,6 +641,7 @@ function irPara(v){
   if(v==="sinc") carregarSinc();
   if(v==="config") carregarConfig();
   if(v==="setup") carregarSetup();
+  if(v==="benef") carregarBenef();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -904,6 +933,7 @@ function atualizarPrevia(){
   if(saldosAtuais && f.ben){
     if(/gift/i.test(f.ben) && saldosAtuais.giftSaldo<=0) avisos.push("Sem saldo de GiftDay: o lançamento será bloqueado.");
     if(/mvt/i.test(f.ben) && saldosAtuais.mvtSaldo<=0) avisos.push("Sem saldo de MVT: o lançamento será bloqueado.");
+    if(/reset/i.test(f.ben) && saldosAtuais.resetSaldo<=0) avisos.push("O ResetDay deste ano já foi usado"+(saldosAtuais.resetUsadoEm?" em "+F(saldosAtuais.resetUsadoEm):"")+": o lançamento será bloqueado.");
   }
   var h=avisos.length? '<div class="status-box warn"><i class="fa-solid fa-circle-exclamation"></i> '+avisos.map(esc).join("<br>")+'</div>' : "";
 
@@ -956,6 +986,53 @@ function salvar(){
     .salvarSugestaoDev(payload);
 }
 
+// ---------- benefícios ----------
+var BF=null;
+function carregarBenef(){
+  google.script.run.withSuccessHandler(function(b){
+    BF=b; setTxt("bfAno",b.ano); setTxt("bfAno2",b.ano);
+    renderBenef();
+    document.getElementById("bfSalvar").disabled=!b.podeEditar;
+    if(!b.podeEditar) mostrarMsg("bfMsg","warn","🔒 Só o gestor pode alterar os benefícios.");
+  }).withFailureHandler(function(e){ mostrarMsg("bfMsg","err","❌ "+e.message); }).obterBeneficios();
+}
+function tempoCasa(iso){
+  if(!iso) return '<span style="color:var(--muted)">–</span>';
+  var a=P(iso), m=(HOJE.getFullYear()-a.getFullYear())*12+(HOJE.getMonth()-a.getMonth()); if(HOJE.getDate()<a.getDate()) m--;
+  var anos=Math.floor(m/12), meses=m%12;
+  return (anos? plural(anos,"ano","anos"):"")+(anos&&meses?" e ":"")+(meses||!anos? plural(meses,"mês","meses"):"");
+}
+function renderBenef(){
+  if(!BF) return;
+  var lista=BF.pessoas.filter(function(p){return passa(p.nome);});
+  document.getElementById("tbBenef").innerHTML = lista.length? lista.map(function(p){
+    var i=BF.pessoas.indexOf(p);
+    var gift = p.gift.total? '<span class="pill '+(p.gift.saldo?"p-yellow":"p-gray")+'">'+p.gift.saldo+' de '+p.gift.total+' dias</span>' :
+      '<span style="color:var(--muted);font-size:11.5px">'+(p.admissao? "sem direito este ano" : "informe a admissão")+'</span>';
+    var reset = p.reset.saldo? '<span class="pill p-teal">Disponível</span>' : '<span class="pill p-gray">Usado'+(p.reset.usadoEm?" em "+FC(p.reset.usadoEm):"")+'</span>';
+    var chips=p.mvt.map(function(m,j){
+      return '<span class="bf-chip '+(m.utilizou?"usado":"livre")+'" title="Clique para marcar como '+(m.utilizou?"não usado":"usado")+'" onclick="toggleMvt('+i+','+j+')"><b>'+esc(String(m.mes).slice(0,3))+'/'+String(m.ano).slice(-2)+'</b>'+(m.utilizou?"usado":"livre")+
+        (BF.podeEditar?'<button class="x" title="Remover" onclick="event.stopPropagation();removerMvt('+i+','+j+')"><i class="fa-solid fa-xmark"></i></button>':'')+'</span>';
+    }).join("");
+    var add = BF.podeEditar? '<div class="bf-add"><select id="bfM'+i+'">'+BF.meses.map(function(m,k){return '<option'+(k===HOJE.getMonth()?" selected":"")+'>'+m+'</option>';}).join("")+'</select><input id="bfA'+i+'" type="number" value="'+BF.ano+'" style="width:64px"><button class="btn btn-sm" style="color:var(--purple)" onclick="addMvt('+i+')"><i class="fa-solid fa-plus"></i> MVT</button></div>' : '';
+    return '<tr><td><div class="nmcell">'+avatar(p.nome)+esc(titulo(p.nome))+'</div></td>'+
+      '<td><input type="date" value="'+(p.admissao||"")+'" onchange="BF.pessoas['+i+'].admissao=this.value;BF.pessoas['+i+'].mudou=true;this.closest(\'tr\').children[2].innerHTML=tempoCasa(this.value)"'+(BF.podeEditar?"":" disabled")+'></td>'+
+      '<td class="nw">'+tempoCasa(p.admissao)+'</td><td class="nw">'+gift+'</td><td class="nw">'+reset+'</td>'+
+      '<td>'+(chips||'<span style="color:var(--muted);font-size:11.5px">nenhum MVT</span>')+add+'</td></tr>';
+  }).join("") : '<tr><td colspan="6">'+vazio("fa-users","Cadastre as pessoas do time em Configuração.")+'</td></tr>';
+}
+function addMvt(i){ var p=BF.pessoas[i]; p.mvt.push({mes:document.getElementById("bfM"+i).value, ano:parseInt(document.getElementById("bfA"+i).value,10), utilizou:false}); p.mudou=true; renderBenef(); }
+function removerMvt(i,j){ BF.pessoas[i].mvt.splice(j,1); BF.pessoas[i].mudou=true; renderBenef(); }
+function toggleMvt(i,j){ if(!BF.podeEditar) return; var m=BF.pessoas[i].mvt[j]; m.utilizou=!m.utilizou; BF.pessoas[i].mudou=true; renderBenef(); }
+function salvarBenef(){
+  var mud=BF.pessoas.filter(function(p){return p.mudou;});
+  if(!mud.length){ mostrarMsg("bfMsg","warn","Nada foi alterado."); return; }
+  var b=document.getElementById("bfSalvar"), html=b.innerHTML; b.disabled=true; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Salvando…';
+  google.script.run.withSuccessHandler(function(res){ b.disabled=false; b.innerHTML=html; mostrarMsg("bfMsg","ok","✔️ "+res); carregarBenef(); })
+    .withFailureHandler(function(e){ b.disabled=false; b.innerHTML=html; mostrarMsg("bfMsg","err","❌ "+e.message); })
+    .salvarBeneficios(mud.map(function(p){ return {nome:p.nome, admissao:p.admissao||"", mvt:p.mvt}; }));
+}
+
 // ---------- primeiros passos ----------
 var LOOKER_URL="https://datastudio.google.com/reporting/736b92c7-f9a6-46bb-aa02-09381fa109c8/page/p_xzbuvx8kfd";
 var SP=null, spAbertos={};
@@ -1005,6 +1082,9 @@ function conteudoPasso(p){
     aviso:{t:"Aviso diário de férias", op:true, b:
       '<div class="dica">Todo dia às 8h, envia por e-mail (e para o Chat, se houver webhook) quem sai de férias nos próximos 30 dias. Os destinatários ficam em <b>Configuração</b>.</div>'+
       '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'avisoOff\')") : btn('<i class="fa-solid fa-bell"></i> Ligar agora',"spAcao(\'avisoOn\')","btn-main"))+btn("Destinatários","irPara(\'config\')")+'</div>'},
+    beneficios:{t:"Cadastrar admissão e MVT", op:true, b:
+      '<div class="dica">A <b>data de admissão</b> define o GiftDay (aniversários de 5, 10, 15 e 20 anos de casa). Os <b>MVTs</b> ganhos também são cadastrados aqui. O ResetDay (1 por ano) é automático.</div>'+
+      '<div class="acoes">'+btn('<i class="fa-solid fa-gift"></i> Ir para Benefícios',"irPara(\'benef\')","btn-main")+'</div>'},
     abertura:{t:"Abrir o dashboard ao abrir a planilha", op:true, b:
       '<div class="dica">Ligado, o dashboard aparece sozinho quando <b>você</b> abre a planilha. Cada pessoa liga para si.</div>'+
       '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'abOff\')") : btn('<i class="fa-solid fa-display"></i> Ligar agora',"spAcao(\'abOn\')","btn-main"))+'</div>'}

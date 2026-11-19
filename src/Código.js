@@ -317,45 +317,50 @@ function consultingSaldosColaborador(nomePesquisa) {
   return consultarSaldosColaborador(nomePesquisa);
 }
 
+// Saldos de benefícios do ano corrente:
+//  - GiftDay: 2/3/4/5 dias no ano em que completa 5/10/15/20 anos de casa (aba Admisssão)
+//  - ResetDay: 1 por ano para todos
+//  - MVT: conforme a aba MVT (Quantidade = 1 dá direito; Utilizou = Sim consome)
 function consultarSaldosColaborador(nomePesquisa) {
   try {
-    var resultado = { giftTotal: 0, giftUsado: 0, giftSaldo: 0, resetTotal: 1, resetUsado: 0, resetSaldo: 1, mvtTotal: 0, mvtUsado: 0, mvtSaldo: 0, anosEmpresa: 0 };
+    var resultado = { giftTotal: 0, giftUsado: 0, giftSaldo: 0, resetTotal: 1, resetUsado: 0, resetSaldo: 1, resetUsadoEm: "",
+                      mvtTotal: 0, mvtUsado: 0, mvtSaldo: 0, anosEmpresa: 0, admissao: "" };
     if (!nomePesquisa) return resultado;
-    var nomeColab = nomePesquisa.toUpperCase().trim();
+    var nomeColab = normalizar_(nomePesquisa);
     var ss = obterPlanilhaAtiva();
-    
+    var anoAtual = new Date().getFullYear();
+    var doAno = function(v) { var d = parseData_(v); return !!d && d.getFullYear() === anoAtual; };
+
     var sheetAdmissao = ss.getSheetByName("Admisssão");
     if (sheetAdmissao && sheetAdmissao.getLastRow() > 1) {
       var dadosAdmissao = sheetAdmissao.getRange(2, 1, sheetAdmissao.getLastRow() - 1, 2).getValues();
       for (var j = 0; j < dadosAdmissao.length; j++) {
-        if (dadosAdmissao[j][0] && dadosAdmissao[j][0].toString().toUpperCase().trim() === nomeColab) {
-          if (dadosAdmissao[j][1]) {
-            var dataAdmissao = new Date(dadosAdmissao[j][1]);
-            var anosCompletosNoAno = 2026 - dataAdmissao.getFullYear();
-            resultado.anosEmpresa = anosCompletosNoAno;
-            if (anosCompletosNoAno === 5) resultado.giftTotal = 2;
-            else if (anosCompletosNoAno === 10) resultado.giftTotal = 3;
-            else if (anosCompletosNoAno === 15) resultado.giftTotal = 4;
-            else if (anosCompletosNoAno === 20) resultado.giftTotal = 5;
+        if (dadosAdmissao[j][0] && normalizar_(dadosAdmissao[j][0]) === nomeColab) {
+          var dataAdmissao = parseData_(dadosAdmissao[j][1]);
+          if (dataAdmissao) {
+            var anos = anoAtual - dataAdmissao.getFullYear();
+            resultado.anosEmpresa = anos;
+            resultado.admissao = iso_(dataAdmissao);
+            if (anos === 5) resultado.giftTotal = 2;
+            else if (anos === 10) resultado.giftTotal = 3;
+            else if (anos === 15) resultado.giftTotal = 4;
+            else if (anos === 20) resultado.giftTotal = 5;
           }
           break;
         }
       }
     }
-    
+
     var sheetMVT = ss.getSheetByName("MVT");
     if (sheetMVT && sheetMVT.getLastRow() > 1) {
       var dadosMVT = sheetMVT.getRange(2, 1, sheetMVT.getLastRow() - 1, 5).getValues();
       for (var m = 0; m < dadosMVT.length; m++) {
-        if (dadosMVT[m][0] && dadosMVT[m][0].toString().toUpperCase().trim() === nomeColab) {
-          var qtdDireito = parseInt(dadosMVT[m][3], 10); 
-          var utilizouStr = dadosMVT[m][4] ? dadosMVT[m][4].toString().toUpperCase().trim() : "NÃO"; 
-          
-          if (!isNaN(qtdDireito) && qtdDireito === 1) {
-            resultado.mvtTotal += 1; 
-            if (utilizouStr === "SIM") {
-              resultado.mvtUsado += 1; 
-            }
+        if (dadosMVT[m][0] && normalizar_(dadosMVT[m][0]) === nomeColab) {
+          var qtdDireito = parseInt(dadosMVT[m][3], 10);
+          var utilizouStr = normalizar_(dadosMVT[m][4] || "NAO");
+          if (!isNaN(qtdDireito) && qtdDireito >= 1) {
+            resultado.mvtTotal += qtdDireito;
+            if (utilizouStr === "SIM") resultado.mvtUsado += qtdDireito;
           }
         }
       }
@@ -366,29 +371,31 @@ function consultarSaldosColaborador(nomePesquisa) {
     if (sheetFerias && sheetFerias.getLastRow() > 1) {
       var regFerias = sheetFerias.getRange(2, 1, sheetFerias.getLastRow() - 1, 12).getValues();
       for (var i = 0; i < regFerias.length; i++) {
-        if (regFerias[i][1] && regFerias[i][1].toString().toUpperCase().trim() === nomeColab) {
-          var sit = regFerias[i][4] ? regFerias[i][4].toString().toUpperCase() : "";
-          if (sit.includes("RESET")) resultado.resetUsado = 1;
-          if (sit.includes("GIFT")) resultado.giftUsado += 1; 
+        if (regFerias[i][1] && normalizar_(regFerias[i][1]) === nomeColab) {
+          var sit = normalizar_(regFerias[i][4]);
+          if (sit.indexOf("REPROVADO") === 0 || sit.indexOf("AJUSTE") === 0) continue;
+          if (!doAno(regFerias[i][9])) continue;
+          if (sit.indexOf("RESET") !== -1) { resultado.resetUsado = 1; resultado.resetUsadoEm = iso_(parseData_(regFerias[i][9])); }
+          if (sit.indexOf("GIFT") !== -1) resultado.giftUsado += 1;
         }
       }
     }
-    
+
     var sheetFolgas = ss.getSheetByName("Folgas e Emendas - 2026");
     if (sheetFolgas && sheetFolgas.getLastRow() > 1) {
       var regFolgas = sheetFolgas.getRange(2, 1, sheetFolgas.getLastRow() - 1, 5).getValues();
       for (var k = 0; k < regFolgas.length; k++) {
-        if (regFolgas[k][0] && regFolgas[k][0].toString().toUpperCase().trim() === nomeColab) {
-          var tipoF = regFolgas[k][1] ? regFolgas[k][1].toString().toUpperCase() : "";
+        if (regFolgas[k][0] && normalizar_(regFolgas[k][0]) === nomeColab) {
+          if (!doAno(regFolgas[k][2])) continue;
+          var tipoF = normalizar_(regFolgas[k][1]);
           var qtdF = parseInt(regFolgas[k][3], 10);
           if (isNaN(qtdF)) qtdF = 0;
-          
-          if (tipoF.includes("RESET")) resultado.resetUsado = 1;
-          if (tipoF.includes("GIFT")) resultado.giftUsado += qtdF;
+          if (tipoF.indexOf("RESET") !== -1) { resultado.resetUsado = 1; resultado.resetUsadoEm = iso_(parseData_(regFolgas[k][2])); }
+          if (tipoF.indexOf("GIFT") !== -1) resultado.giftUsado += qtdF;
         }
       }
     }
-    
+
     resultado.giftSaldo = Math.max(0, resultado.giftTotal - resultado.giftUsado);
     resultado.resetSaldo = Math.max(0, resultado.resetTotal - resultado.resetUsado);
     return resultado;
@@ -581,6 +588,9 @@ function salvarSugestaoDev(dados) {
       }
       if (opcao.includes("GIFT") && saldos.giftSaldo <= 0) {
         throw new Error("Bloqueio de Elegibilidade: Saldo de GiftDay insuficiente.");
+      }
+      if (opcao.includes("RESET") && saldos.resetSaldo <= 0) {
+        throw new Error("Bloqueio de Elegibilidade: o ResetDay deste ano já foi usado" + (saldos.resetUsadoEm ? " (" + Utilities.formatDate(parseData_(saldos.resetUsadoEm), Session.getScriptTimeZone(), "dd/MM/yyyy") + ")" : "") + ".");
       }
     }
 
