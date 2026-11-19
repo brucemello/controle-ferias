@@ -488,7 +488,11 @@ function urlWebApp_() {
   if (prop) return prop;
   // Na planilha original o deploy do GitHub gera a URL; numa cópia, usa o App da Web da própria cópia
   if (ehPlanilhaOriginal_() && typeof URL_WEBAPP_APROVACAO !== "undefined") return URL_WEBAPP_APROVACAO;
-  try { return ScriptApp.getService().getUrl() || ""; } catch (e) { return ""; }
+  // Sem link salvo: só usa o automático se o App da Web estiver de fato publicado
+  try {
+    const svc = ScriptApp.getService();
+    return svc.isEnabled() ? (svc.getUrl() || "") : "";
+  } catch (e) { return ""; }
 }
 
 function obterAbaAprovacoes_() {

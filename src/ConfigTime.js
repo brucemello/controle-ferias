@@ -74,6 +74,8 @@ function obterConfiguracaoTime() {
     emailGestor: gestor,
     idAgenda: atual,
     emailsAviso: emailsAviso_(),
+    urlWebApp: PropertiesService.getScriptProperties().getProperty("URL_WEBAPP") || "",
+    urlWebAppAuto: (function() { try { const s = ScriptApp.getService(); return s.isEnabled() ? (s.getUrl() || "") : ""; } catch (e) { return ""; } })(),
     temWebhook: !!webhookChat_(),
     agendas: agendas,
     time: time,
@@ -125,6 +127,12 @@ function salvarConfiguracaoTime(dados) {
     EMAILS_AVISO: String(dados.emailsAviso || "").trim(),
     ID_PLANILHA: ss.getId()
   });
+  if (typeof dados.urlWebApp === "string") {
+    const u = dados.urlWebApp.trim();
+    if (!u) props.deleteProperty("URL_WEBAPP");
+    else if (!/^https:\/\/script\.google\.com\/.+\/exec$/.test(u)) throw new Error("O link do App da Web deve começar com https://script.google.com/ e terminar com /exec.");
+    else props.setProperty("URL_WEBAPP", u);
+  }
   if (dados.webhook === "") props.deleteProperty("WEBHOOK_CHAT");
   else if (dados.webhook) props.setProperty("WEBHOOK_CHAT", String(dados.webhook).trim());
 

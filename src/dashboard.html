@@ -465,6 +465,8 @@
             <div class="field"><label>Aviso diário de férias — destinatários (separados por vírgula)</label><input id="cAviso" placeholder="gestor@totvs.com.br,time@totvs.com.br"></div>
             <div class="field"><label>Webhook do Google Chat (opcional)</label><input id="cWebhook" placeholder="Cole a URL do webhook do espaço do time">
               <div id="cWebhookInfo" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
+            <div class="field"><label>Link do App da Web (botão de aprovação dos e-mails)</label><input id="cWebApp" placeholder="https://script.google.com/.../exec">
+              <div id="cWebAppInfo" style="font-size:11px;color:var(--muted);margin-top:5px">Depois de publicar o App da Web (Primeiros passos, etapa 5), cole aqui o URL que termina em /exec.</div></div>
           </div>
           <div class="card">
             <h3><i class="fa-solid fa-address-book" style="color:var(--blue)"></i>Pessoas do time<span class="hint">nome como aparece no RH · e-mail para avisos</span></h3>
@@ -813,7 +815,7 @@ function renderConflitos(){
   var pend=D.pendentes.filter(function(p){ return passa(String(p.nome).toUpperCase()); });
   document.getElementById("listaPend").innerHTML = pend.length? pend.map(function(p){
     return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div><div class="dt">conflita com: '+esc(p.conflitos)+'</div></div>'+
-      '<div class="right"><span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span></div></div>';
+      '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+'</div></div>';
   }).join("")+'<div style="font-size:11px;color:var(--muted);margin-top:10px"><i class="fa-regular fa-envelope"></i> A decisão é feita pelo botão “Analisar e decidir” no e-mail de cada solicitação.</div>' : vazio("fa-inbox","Nenhum lançamento aguardando aprovação.");
 }
 
@@ -988,8 +990,9 @@ function conteudoPasso(p){
       '<li>No canto superior direito, clique em '+k("Implantar")+' → '+k("Nova implantação")+'.</li>'+
       '<li>Clique na engrenagem ⚙️ ao lado de <i>"Selecionar tipo"</i> → '+k("App da Web")+'.</li>'+
       '<li>Descrição: <i>Aprovação de férias</i> · Executar como: '+k("Eu")+' · Quem pode acessar: '+k("Somente eu")+' (ou '+k("Qualquer pessoa da TOTVS")+', se quiser compartilhar o link do dashboard com o time).</li>'+
-      '<li>Clique em '+k("Implantar")+', autorize se o Google pedir e volte aqui para clicar em <b>Verificar de novo</b>.</li></ol>'+
-      '<div class="acoes">'+lnk("Abrir o editor do Apps Script",editorUrl())+(p.url? lnk("Testar o link",p.url):"")+btn('<i class="fa-solid fa-rotate"></i> Verificar de novo',"carregarSetup()")+'</div>'},
+      '<li>Clique em '+k("Implantar")+' e autorize se o Google pedir. <b>Quem implanta precisa ser o(a) gestor(a)</b>, que é quem vai abrir os links de aprovação.</li>'+
+      '<li>Copie o <b>URL do App da Web</b> (termina em <i>/exec</i>) e cole em <b>Configuração → Link do App da Web</b>. Salve e clique em <b>Verificar de novo</b>.</li></ol>'+
+      '<div class="acoes">'+lnk("Abrir o editor do Apps Script",editorUrl())+btn('<i class="fa-solid fa-gear"></i> Colar o link em Configuração',"irPara(\'config\')")+(p.url? lnk("Testar o link",p.url):"")+btn('<i class="fa-solid fa-rotate"></i> Verificar de novo',"carregarSetup()")+'</div>'},
     rh:{t:"Trazer as férias do RH (Looker Studio)", b:
       '<ol><li>Abra o relatório de férias do RH no Looker Studio e deixe a tabela com o <b>seu time</b>.</li>'+
       '<li>Na tabela <b>Férias - Nominal Geral</b>, clique em '+k("⋮")+' → '+k("Exportar gráfico…")+' → '+k("Google Planilhas")+' → '+k("Exportar")+'.</li>'+
@@ -1090,6 +1093,8 @@ function carregarConfig(){
     document.getElementById("cGestor").value=c.emailGestor||c.usuario||"";
     document.getElementById("cAviso").value=c.emailsAviso||"";
     document.getElementById("cWebhook").value="";
+    document.getElementById("cWebApp").value=c.urlWebApp||"";
+    if(!c.urlWebApp && c.urlWebAppAuto) document.getElementById("cWebAppInfo").textContent="Detectado automaticamente: "+c.urlWebAppAuto+" — cole aqui para fixar.";
     document.getElementById("cWebhookInfo").textContent = c.temWebhook? "Já existe um webhook salvo. Deixe em branco para manter ou cole outro para trocar." : "Sem webhook: o aviso diário vai só por e-mail.";
     var sel=document.getElementById("cAgenda");
     sel.innerHTML='<option value="">Selecione…</option><option value="NOVA">➕ Criar nova agenda para o time</option>'+c.agendas.map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.nome)+'</option>';}).join("");
@@ -1115,7 +1120,7 @@ function salvarConfig(){
   var dados={
     nomeSquad:document.getElementById("cNome").value, emailGestor:document.getElementById("cGestor").value,
     idAgenda:document.getElementById("cAgenda").value, emailsAviso:document.getElementById("cAviso").value,
-    webhook: wh || null, membros:membros,
+    webhook: wh || null, urlWebApp: document.getElementById("cWebApp").value, membros:membros,
     limparDados:document.getElementById("cLimpar").checked, confirmacao:document.getElementById("cConf").value
   };
   var b=document.getElementById("cSalvar"), html=b.innerHTML;

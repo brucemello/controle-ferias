@@ -116,12 +116,16 @@ function obterDadosDashboard() {
   const pendentes = [];
   const abaApr = ss.getSheetByName(CONFIG_APROVACAO.abaAprovacoes);
   if (abaApr && abaApr.getLastRow() > 1) {
-    abaApr.getRange(2, 1, abaApr.getLastRow() - 1, 9).getValues().forEach(r => {
+    let souGestor = false;
+    try { souGestor = String(Session.getActiveUser().getEmail()).toLowerCase() === String(emailLider_()).toLowerCase(); } catch (e) {}
+    const url = souGestor ? urlWebApp_() : "";
+    abaApr.getRange(2, 1, abaApr.getLastRow() - 1, COL_APR.TOKEN).getValues().forEach(r => {
       if (r[COL_APR.STATUS - 1] !== STATUS_APR.PENDENTE) return;
       pendentes.push({
         id: String(r[0]), nome: String(r[2]),
         inicio: iso_(parseData_(r[3])), fim: iso_(parseData_(r[4])),
-        conflitos: String(r[6] || "")
+        conflitos: String(r[6] || ""),
+        link: url ? url + "?id=" + encodeURIComponent(String(r[0])) + "&t=" + String(r[COL_APR.TOKEN - 1]) : ""
       });
     });
   }
