@@ -504,6 +504,12 @@ function testarSincronizacaoUnica() {
 
 function publicarHistoricoAntigoNoCalendario() {
   var ui = SpreadsheetApp.getUi();
+  var totalEnviados = publicarLoteCalendario_();
+  ui.alert("Sincronização Concluída", "Processo em lote finalizado com sucesso!\nForam publicados " + totalEnviados + " novos eventos.", ui.ButtonSet.OK);
+}
+
+// Núcleo do envio em lote (sem janela): usado pelo menu, pelo dashboard e pela sincronização automática
+function publicarLoteCalendario_() {
   var ss = obterPlanilhaAtiva();
   var totalEnviados = 0;
   
@@ -556,7 +562,7 @@ function publicarHistoricoAntigoNoCalendario() {
     }
   }
   
-  ui.alert("Sincronização Concluída", "Processo em lote finalizado com sucesso!\nForam publicados " + totalEnviados + " novos eventos.", ui.ButtonSet.OK);
+  return totalEnviados;
 }
 
 // =========================================================================================

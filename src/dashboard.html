@@ -215,6 +215,24 @@
   .msg.err{background:var(--red-l);color:#8f1d22}
   .msg.warn{background:var(--yellow-l);color:#6b4b00}
 
+  .sinc-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .sinc-card p{color:var(--muted);font-size:12.5px;margin:0 0 12px;line-height:1.5}
+  .sinc-card .row{display:flex;gap:8px}
+  .sinc-card .row input{flex:1;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:12.5px;background:#fbfcfe;outline:0}
+  .sinc-card .row input:focus{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-l)}
+  .btn-sec{background:var(--side);color:#fff}
+  .btn-orange{background:#e8710a;color:#fff}
+  .btn-blue{background:var(--blue);color:#fff}
+  .btn:disabled{opacity:.55;cursor:default}
+  .ic{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-size:16px;flex-shrink:0}
+  .switch{position:relative;width:46px;height:26px;flex-shrink:0}
+  .switch input{display:none}
+  .switch span{position:absolute;inset:0;background:#d5dae3;border-radius:99px;cursor:pointer;transition:.2s}
+  .switch span::after{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .switch input:checked+span{background:var(--teal)}
+  .switch input:checked+span::after{left:23px}
+  .switch input:disabled+span{opacity:.5;cursor:default}
+  .steps{margin:0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.7}
   .loading{position:fixed;inset:0;background:rgba(238,241,246,.85);display:grid;place-items:center;z-index:50;font-weight:600;color:var(--muted)}
   .loading i{font-size:26px;color:var(--teal);margin-bottom:8px;display:block;text-align:center}
   .hide{display:none!important}
@@ -235,6 +253,7 @@
       <li data-view="timeline"><i class="fa-solid fa-bars-staggered"></i>Linha do tempo</li>
       <li data-view="conflitos"><i class="fa-solid fa-triangle-exclamation"></i>Conflitos <span class="count hide" id="navConf">0</span></li>
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
+      <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
     </ul>
     <button class="cta" onclick="irPara('lancar')"><i class="fa-solid fa-plus"></i> Lançar férias</button>
     <button class="ghost so-dialogo" onclick="google.script.host.close()">Fechar</button>
@@ -360,6 +379,44 @@
           </div>
         </div>
       </section>
+      <!-- SINCRONIZAR -->
+      <section class="view" id="v-sinc">
+        <div class="sinc-grid">
+          <div class="card sinc-card">
+            <h3><span class="ic" style="background:#fde7d4;color:#c25700"><i class="fa-solid fa-file-import"></i></span>Importar da planilha do RH</h3>
+            <p>Traz a programação oficial do RH e marca como <b>AGENDADOS</b> as sugestões lançadas pelos devs que o RH confirmou.</p>
+            <div class="field" style="margin-bottom:10px"><label>ID da planilha de origem</label>
+              <div class="row"><input id="sIdRH" placeholder="Cole o ID da planilha do RH…"><button class="btn btn-orange" id="bImp" onclick="acaoSinc('imp')"><i class="fa-solid fa-file-import"></i> Importar</button></div></div>
+            <div class="msg" id="mImp"></div>
+          </div>
+
+          <div class="card sinc-card">
+            <h3><span class="ic" style="background:var(--blue-l);color:#1d4ed8"><i class="fa-regular fa-calendar-plus"></i></span>Enviar para o Calendar</h3>
+            <p>Publica na agenda <b>Ausências Novas Apurações</b> as férias com status <b>AGENDADOS</b> e as folgas que ainda não foram espelhadas. O que já está na agenda não é duplicado.</p>
+            <button class="btn btn-blue" id="bCal" onclick="acaoSinc('cal')"><i class="fa-solid fa-paper-plane"></i> Sincronizar lote agora</button>
+            <button class="btn btn-sec" id="bConf" onclick="acaoSinc('conf')" style="margin-left:6px"><i class="fa-solid fa-triangle-exclamation"></i> Atualizar aba de conflitos</button>
+            <div class="msg" id="mCal"></div>
+          </div>
+
+          <div class="card sinc-card" style="grid-column:1/-1">
+            <h3><span class="ic" style="background:var(--teal-l);color:#0f766e"><i class="fa-solid fa-clock-rotate-left"></i></span>Sincronização automática
+              <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;font-size:12px;color:var(--muted)"><span id="sAutoTxt">Desligada</span><label class="switch"><input type="checkbox" id="sAuto" onchange="alternarAuto()"><span></span></label></span></h3>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px">
+              <div>
+                <p style="margin-bottom:6px">Quando ligada, roda <b>todo dia entre <span id="sHora">7</span>h e <span id="sHora2">8</span>h</b>, sem ninguém abrir a planilha:</p>
+                <ol class="steps"><li>importa a planilha do RH (o ID acima);</li><li>publica na agenda o que estiver AGENDADOS e ainda não espelhado;</li><li>atualiza a aba Controle de Conflitos.</li></ol>
+                <p style="margin-top:8px">Se algo falhar, você recebe um e-mail. Lançamentos feitos pelo painel ou por aqui já vão para a agenda na hora (ou depois da aprovação, se houver conflito).</p>
+                <p id="sSoGestor" class="hide" style="color:#8a6100"><i class="fa-solid fa-lock"></i> Só o gestor pode ligar ou desligar.</p>
+              </div>
+              <div style="background:#f6f7fa;border-radius:12px;padding:12px 14px">
+                <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px">Última sincronização</div>
+                <div id="sUltima" style="font-size:12.5px;line-height:1.5">–</div>
+              </div>
+            </div>
+            <div class="msg" id="mAuto"></div>
+          </div>
+        </div>
+      </section>
     </div>
   </main>
 </div>
@@ -424,11 +481,12 @@ function renderTudo(){
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
   document.getElementById("titulo").textContent=TITULOS[v];
+  if(v==="sinc") carregarSinc();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -770,6 +828,47 @@ function salvar(){
       btn.textContent=txt; btn.disabled=false;
     })
     .salvarSugestaoDev(payload);
+}
+
+// ---------- sincronizar ----------
+var SINC=null;
+function carregarSinc(){
+  google.script.run.withSuccessHandler(function(st){
+    SINC=st;
+    var inp=document.getElementById("sIdRH"); if(!inp.value) inp.value=st.idRH||"";
+    var sw=document.getElementById("sAuto"); sw.checked=st.automatico; sw.disabled=!st.podeConfigurar;
+    setTxt("sAutoTxt", st.automatico? "Ligada" : "Desligada");
+    setTxt("sHora", st.hora); setTxt("sHora2", st.hora+1);
+    document.getElementById("sSoGestor").classList.toggle("hide", st.podeConfigurar);
+    document.getElementById("sUltima").innerHTML = st.ultima? '<b>'+esc(st.ultima.quando)+'</b> · '+esc(st.ultima.origem)+'<br><span style="color:var(--muted)">'+esc(st.ultima.resumo)+'</span>' : '<span style="color:var(--muted)">Nenhuma registrada ainda.</span>';
+  }).withFailureHandler(function(e){ mostrarMsg("mAuto","err","❌ "+e.message); }).obterStatusSincronizacao();
+}
+function mostrarMsg(id,tipo,txt){ var m=document.getElementById(id); m.className="msg show "+tipo; m.textContent=txt; }
+function acaoSinc(qual){
+  var cfg={
+    imp:{btn:"bImp",msg:"mImp",fn:"importarRhDashboard",arg:document.getElementById("sIdRH").value,txt:"Importando…"},
+    cal:{btn:"bCal",msg:"mCal",fn:"sincronizarCalendarDashboard",txt:"Publicando na agenda…"},
+    conf:{btn:"bConf",msg:"mCal",fn:"atualizarConflitosDashboard",txt:"Atualizando…"}
+  }[qual];
+  if(qual==="imp" && !cfg.arg.trim()){ mostrarMsg(cfg.msg,"err","❌ Cole o ID da planilha do RH."); return; }
+  var b=document.getElementById(cfg.btn), html=b.innerHTML;
+  b.disabled=true; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> '+cfg.txt;
+  var r=google.script.run.withSuccessHandler(function(res){
+      b.disabled=false; b.innerHTML=html; mostrarMsg(cfg.msg,"ok","✔️ "+res); carregarSinc(); carregar();
+    }).withFailureHandler(function(e){
+      b.disabled=false; b.innerHTML=html; mostrarMsg(cfg.msg,"err","❌ "+e.message);
+    });
+  if(qual==="imp") r[cfg.fn](cfg.arg); else r[cfg.fn]();
+}
+function alternarAuto(){
+  var sw=document.getElementById("sAuto"), ligar=sw.checked;
+  sw.disabled=true; setTxt("sAutoTxt", ligar? "Ligando…" : "Desligando…");
+  google.script.run.withSuccessHandler(function(st){
+      mostrarMsg("mAuto","ok", ligar? "✔️ Sincronização automática ligada: roda todo dia entre "+st.hora+"h e "+(st.hora+1)+"h." : "✔️ Sincronização automática desligada.");
+      carregarSinc();
+    }).withFailureHandler(function(e){
+      sw.checked=!ligar; sw.disabled=false; setTxt("sAutoTxt", sw.checked? "Ligada":"Desligada"); mostrarMsg("mAuto","err","❌ "+e.message);
+    }).configurarSincronizacaoAutomatica(ligar);
 }
 
 carregar();
