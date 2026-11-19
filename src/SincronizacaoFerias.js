@@ -161,3 +161,15 @@ function registrarUltimaSinc_(origem, resumo) {
     resumo: String(resumo || "").replace(/\n/g, " ").slice(0, 400)
   }));
 }
+
+// Rode UMA VEZ pelo editor (Executar) para conceder todas as permissões:
+// Drive (achar a exportação do Looker), gatilhos, agenda, e-mail e planilhas.
+function autorizarPermissoes() {
+  DriveApp.searchFiles('title contains "' + SINC_CONFIG.tituloExportacao + '"').hasNext();
+  ScriptApp.getProjectTriggers();
+  CalendarApp.getCalendarById(ID_AGENDA_ALVO.trim());
+  MailApp.getRemainingDailyQuota();
+  vincularPlanilha_();
+  const ex = exportacaoMaisRecente_();
+  Logger.log("✅ Permissões concedidas. Exportação mais recente: " + (ex ? ex.nome + " (" + ex.criada + ")" : "nenhuma encontrada"));
+}
