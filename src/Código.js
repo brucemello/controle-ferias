@@ -39,6 +39,7 @@ function enviarEmailConflitosLiderDireto() {
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Apoio Gestão')
+    .addItem('📊 Abrir Dashboard de Férias', 'abrirDashboard')
     .addItem('Abrir Painel de Controle', 'abrirPainel')
     .addItem('Abrir Manual do Usuário', 'abManual')
     .addSeparator()
