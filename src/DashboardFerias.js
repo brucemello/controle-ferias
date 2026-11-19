@@ -1,5 +1,5 @@
 // =========================================================================
-// DASHBOARD DE FÉRIAS — Squad Novas Apurações
+// DASHBOARD DE FÉRIAS
 // -------------------------------------------------------------------------
 // Abre pelo menu "Apoio Gestão > 📊 Abrir Dashboard de Férias".
 // Reaproveita as regras de AprovacaoFerias.js (parseData_, situacaoIgnorada_,
@@ -16,7 +16,7 @@ const DASH_CONFIG = {
 function doGetDashboard_() {
   return HtmlService.createHtmlOutputFromFile("dashboard")
     .append("<script>window.MODO_WEB=true;document.querySelectorAll('.so-dialogo').forEach(function(el){el.style.display='none';});</script>")
-    .setTitle("Controle de Férias · Squad Novas Apurações")
+    .setTitle("Controle de Férias · " + nomeSquad_())
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
 }
 
@@ -140,7 +140,10 @@ function obterDadosDashboard() {
     folgas: folgas,
     conflitos: conflitos,
     pendentes: pendentes,
-    config: DASH_CONFIG
+    config: DASH_CONFIG,
+    nomeSquad: nomeSquad_(),
+    configurado: timeConfigurado_(),
+    ehGestor: !!usuario && String(usuario).toLowerCase() === String(emailLider_()).toLowerCase()
   };
 }
 

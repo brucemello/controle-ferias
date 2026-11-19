@@ -1,14 +1,8 @@
 // =========================================================================================
 // CONFIGURAÇÕES GLOBAIS
 // =========================================================================================
-// ID fixo da planilha para estabilidade absoluta nos gatilhos e operações
-const PLANILHA_ID = "1ExPIKq8Rqqw8wU9dyae8KaHCIHmWKUxgyy-1XeoA9Zg";
-
-// ID exato e verificado da agenda "Ausências Novas Apurações"
-const ID_AGENDA_ALVO = "c_309f2f359160bb1d732268dbb2e33b80dda091c626cbb2f997c8066a87c004af@group.calendar.google.com";
-
-// E-mail fixo do Líder/Gestor que receberá os relatórios de conflitos
-const EMAIL_LIDER = "bruce.mello@totvs.com.br"; // <-- INSIRA O E-MAIL DO LÍDER AQUI
+// Gestor, agenda, nome do time e destinatários ficam em ConfigTime.js
+// (Propriedades do Script) — configure pelo dashboard em "Configuração".
 
 // =========================================================================================
 // FUNÇÃO DO MENU (SEM NECESSIDADE DE DIGITAR O E-MAIL)
@@ -16,18 +10,18 @@ const EMAIL_LIDER = "bruce.mello@totvs.com.br"; // <-- INSIRA O E-MAIL DO LÍDER
 function enviarEmailConflitosLiderDireto() {
   var ui = SpreadsheetApp.getUi();
   
-  if (!EMAIL_LIDER || EMAIL_LIDER.includes("seu_email_aqui")) {
-    ui.alert("Configuração Pendente", "Insira o e-mail correto do líder na constante EMAIL_LIDER no topo do código do Apps Script.", ui.ButtonSet.OK);
+  if (!emailLider_()) {
+    ui.alert("Configuração Pendente", "Configure o time no Dashboard de Férias (menu lateral > Configuração).", ui.ButtonSet.OK);
     return;
   }
   
   // Atualiza os conflitos antes de disparar o e-mail
   atualizarAbaControleConflitos();
   
-  var enviado = enviarEmailConflitosLider(EMAIL_LIDER);
+  var enviado = enviarEmailConflitosLider(emailLider_());
   
   if (enviado) {
-    ui.alert("E-mail Enviado!", "O relatório de conflitos foi enviado com sucesso para:\n" + EMAIL_LIDER, ui.ButtonSet.OK);
+    ui.alert("E-mail Enviado!", "O relatório de conflitos foi enviado com sucesso para:\n" + emailLider_(), ui.ButtonSet.OK);
   } else {
     ui.alert("Sem Conflitos", "Não foram encontrados conflitos pendentes para envio no momento.", ui.ButtonSet.OK);
   }
@@ -428,7 +422,8 @@ function atualizarAbaMVTComoUtilizado(nomeColaborador) {
 // =========================================================================================
 function injetarEventoNoCalendarioGoogle(tituloEvento, dataInicioStr, dataFimStr) {
   try {
-    var agenda = CalendarApp.getCalendarById(ID_AGENDA_ALVO.trim());
+    if (!idAgenda_()) { Logger.log("Agenda do time não configurada."); return false; }
+    var agenda = CalendarApp.getCalendarById(idAgenda_());
     if (!agenda) {
       Logger.log("Não foi possível encontrar a agenda pelo ID fornecido.");
       return false;
@@ -702,7 +697,8 @@ function inicializarTodasAbas() {
 //  3. não existe: inclui uma linha nova "Importado do RH", que o envio em lote publica na agenda.
 function importarDadosPorIdPlanilha(idOrigem) {
   try {
-    var idPlanilhaRH = (idOrigem && String(idOrigem).trim() !== "") ? String(idOrigem).trim() : "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE";
+    var idPlanilhaRH = (idOrigem && String(idOrigem).trim() !== "") ? String(idOrigem).trim() : cfg_("ID_PLANILHA_RH");
+    if (!idPlanilhaRH) throw new Error("Informe o ID da planilha do RH.");
     var ssOrigem = SpreadsheetApp.openById(idPlanilhaRH);
     var sheetRH = ssOrigem.getSheetByName("Sheet1") || ssOrigem.getSheets()[0];
     var sheetDestino = obterPlanilhaAtiva().getSheetByName("Controle Consolidado - 2026");
@@ -816,7 +812,8 @@ function importarDadosPorIdPlanilha(idOrigem) {
 function removerEventoAgenda_(nome, ini, fim) {
   try {
     if (!ini) return;
-    var agenda = CalendarApp.getCalendarById(ID_AGENDA_ALVO.trim());
+    if (!idAgenda_()) return;
+    var agenda = CalendarApp.getCalendarById(idAgenda_());
     if (!agenda) return;
     var ate = new Date((fim || ini).getFullYear(), (fim || ini).getMonth(), (fim || ini).getDate() + 2);
     agenda.getEvents(ini, ate).forEach(function(ev) {
@@ -956,8 +953,8 @@ function atualizarAbaControleConflitos(enviarEmail) {
   }
 
   // 4. ENVIO AUTOMÁTICO DE E-MAIL
-  // Se houver e-mail válido configurado na constante EMAIL_LIDER, dispara automaticamente
-  if (enviarEmail !== false && typeof EMAIL_LIDER !== "undefined" && EMAIL_LIDER && !EMAIL_LIDER.includes("seu_email_aqui")) {
-    enviarEmailConflitosLider(EMAIL_LIDER);
+  // Se houver gestor configurado, dispara automaticamente
+  if (enviarEmail !== false && emailLider_()) {
+    enviarEmailConflitosLider(emailLider_());
   }
 }

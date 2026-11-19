@@ -1,11 +1,11 @@
 // =========================================================================
 // CONFIGURAÇÕES GERAIS
 // =========================================================================
+// Destinatários e webhook do Google Chat vêm da configuração do time
+// (dashboard > Configuração), guardados nas Propriedades do Script.
 const CONFIG_NOTIFICAO = {
-  emailDestino: "bruce.mello@totvs.com.br,squad.tributos@totvs.com.br",
-  // Opcional: Cole a URL do Webhook do Google Chat caso queira receber lá também
-  webhookGoogleChat: "https://chat.googleapis.com/v1/spaces/AAQASQqZuUU/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=m7pf4GBuC-Iz0bW_rFXt8m271klkAXq4WHlfILZrN2c" 
-  //webhookGoogleChat: "https://chat.googleapis.com/v1/spaces/AAQAxo7NLbM/messages?key=AIzaSyDdI0hCZtE6vySjMm-WEfRq3CPzqKqqsHI&token=Wrx_kPU0xvSmNeMPaV22egxXocbZJ9eF2-tmplhzS7g" 
+  get emailDestino() { return emailsAviso_(); },
+  get webhookGoogleChat() { return webhookChat_(); }
 };
 // URL de exibição direta da imagem do seu Google Drive
 const IMAGE_URL_FERIAS = "https://lh3.googleusercontent.com/d/1SLRN8cud5B3WcFlBktv_xMKi1CUymEcJ";
@@ -59,7 +59,7 @@ function notificarProximasFerias() {
   }
 
   // Envia por E-mail
-  enviarEmailFerias(feriasEncontradas);
+  if (CONFIG_NOTIFICAO.emailDestino) enviarEmailFerias(feriasEncontradas);
 
   // Envia para o Google Chat (se a URL do webhook estiver preenchida)
   if (CONFIG_NOTIFICAO.webhookGoogleChat) {
@@ -71,7 +71,7 @@ function notificarProximasFerias() {
 // 1. Envio de E-mail Formatado (HTML)
 // ---------------------------------------------------------------------------
 function enviarEmailFerias(listaFerias) {
-  const assunto = `🌴 Avisos de Férias da Squad Novas Apurações`;
+  const assunto = `🌴 Avisos de Férias - ${nomeSquad_()}`;
 
   let itensListaHtml = "";
   let itensListaTexto = "";
@@ -92,13 +92,13 @@ function enviarEmailFerias(listaFerias) {
       <!-- Cabeçalho -->
       <div style="padding: 16px 20px; border-bottom: 1px solid #f0f0f0;">
         <h2 style="margin: 0; font-size: 18px; color: #202124;">Avisos de Férias</h2>
-        <p style="margin: 4px 0 0 0; font-size: 13px; color: #5f6368;">Squad Novas Apurações</p>
+        <p style="margin: 4px 0 0 0; font-size: 13px; color: #5f6368;">${nomeSquad_()}</p>
       </div>
 
       <!-- Corpo -->
       <div style="padding: 20px;">
         <p style="text-align: center; font-size: 16px; margin-top: 0;">
-          🏖️ 😎 <strong>Avisos de Férias da Squad Novas Apurações</strong> 😎 🏖️
+          🏖️ 😎 <strong>Avisos de Férias - ${nomeSquad_()}</strong> 😎 🏖️
         </p>
 
         <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
@@ -119,7 +119,7 @@ function enviarEmailFerias(listaFerias) {
   MailApp.sendEmail({
     to: CONFIG_NOTIFICAO.emailDestino,
     subject: assunto,
-    body: `Avisos de Férias da Squad Novas Apurações:\n\n${itensListaTexto}`,
+    body: `Avisos de Férias - ${nomeSquad_()}:\n\n${itensListaTexto}`,
     htmlBody: htmlBody
   });
 }
@@ -142,7 +142,7 @@ function enviarGoogleChatFerias(listaFerias) {
         card: {
           header: {
             title: "Avisos de Férias",
-            subtitle: "Squad Novas Apurações",
+            subtitle: nomeSquad_(),
             imageUrl: "https://fonts.gstatic.com/s/i/short-term/release/googlesymbols/beach_access/default/24px.svg",
             imageType: "CIRCLE"
           },
@@ -151,7 +151,7 @@ function enviarGoogleChatFerias(listaFerias) {
               widgets: [
                 {
                   textParagraph: {
-                    text: "🏖️ 😎 *Avisos de Férias da Squad Novas Apurações* 😎 🏖️"
+                    text: "🏖️ 😎 *Avisos de Férias - " + nomeSquad_() + "* 😎 🏖️"
                   }
                 },
                 {

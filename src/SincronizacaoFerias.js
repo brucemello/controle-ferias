@@ -5,7 +5,6 @@
 // =========================================================================
 
 const SINC_CONFIG = {
-  idRhPadrao: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE", // mesmo padrão de importarDadosPorIdPlanilha
   horaAutomatica: 7, // a rotina diária roda entre 7h e 8h
   funcaoAutomatica: "sincronizacaoAutomatica",
   funcaoVigia: "verificarNovaExportacao", // roda de hora em hora procurando exportação nova
@@ -43,7 +42,8 @@ function idRhParaImportar_() {
     if (!ex) throw new Error("Nenhuma planilha '" + SINC_CONFIG.tituloExportacao + "' encontrada no Drive. Exporte a tabela do Looker Studio para o Google Planilhas.");
     return ex;
   }
-  const id = PropertiesService.getScriptProperties().getProperty("ID_PLANILHA_RH") || SINC_CONFIG.idRhPadrao;
+  const id = cfg_("ID_PLANILHA_RH");
+  if (!id) throw new Error("Nenhum ID de planilha do RH configurado.");
   return { id: id, nome: "ID fixo", criada: "" };
 }
 
@@ -60,7 +60,7 @@ function obterStatusSincronizacao() {
   return {
     modo: modoRh_(),
     exportacao: exportacao,
-    idRH: props.getProperty("ID_PLANILHA_RH") || SINC_CONFIG.idRhPadrao,
+    idRH: cfg_("ID_PLANILHA_RH"),
     automatico: !!gatilho,
     hora: SINC_CONFIG.horaAutomatica,
     ultima: ultima,
@@ -167,7 +167,7 @@ function registrarUltimaSinc_(origem, resumo) {
 function autorizarPermissoes() {
   DriveApp.searchFiles('title contains "' + SINC_CONFIG.tituloExportacao + '"').hasNext();
   ScriptApp.getProjectTriggers();
-  CalendarApp.getCalendarById(ID_AGENDA_ALVO.trim());
+  if (idAgenda_()) CalendarApp.getCalendarById(idAgenda_());
   MailApp.getRemainingDailyQuota();
   vincularPlanilha_();
   const ex = exportacaoMaisRecente_();

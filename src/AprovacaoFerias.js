@@ -1,5 +1,5 @@
 // =========================================================================
-// APROVAÇÃO DE FÉRIAS COM CONFLITO — Squad Novas Apurações
+// APROVAÇÃO DE FÉRIAS COM CONFLITO
 // -------------------------------------------------------------------------
 // Fluxo:
 //  1. salvarSugestaoDev grava a nova linha e chama processarLancamentoFerias(linha).
@@ -27,8 +27,8 @@ const CONFIG_APROVACAO = {
   janelaBuscaSugestaoDias: 180
 };
 
-// E-mail do gestor vem de EMAIL_LIDER (Código.js); lido em tempo de execução
-function emailGestor_() { return EMAIL_LIDER; }
+// E-mail do gestor vem da configuração do time (ConfigTime.js)
+function emailGestor_() { return emailLider_(); }
 
 const STATUS_APR = {
   PENDENTE: "Pendente Aprovação",
@@ -455,7 +455,7 @@ function enviarEmail_(para, assunto, titulo, corpoHtml) {
     "<div style='max-width:600px;margin:0 auto;font-family:Arial,sans-serif;border:1px solid #e0e0e0;border-radius:12px;overflow:hidden;background:#fff'>" +
     "<div style='padding:16px 20px;border-bottom:1px solid #f0f0f0'>" +
     "<h2 style='margin:0;font-size:18px;color:#202124'>" + titulo + "</h2>" +
-    "<p style='margin:4px 0 0;font-size:13px;color:#5f6368'>Squad Novas Apurações · Controle de Férias</p></div>" +
+    "<p style='margin:4px 0 0;font-size:13px;color:#5f6368'>" + esc_(nomeSquad_()) + " · Controle de Férias</p></div>" +
     "<div style='padding:20px;font-size:14px;color:#3c4043;line-height:1.5'>" + corpoHtml + "</div></div>";
   try {
     MailApp.sendEmail({
@@ -486,7 +486,9 @@ function planilha_() {
 function urlWebApp_() {
   const prop = PropertiesService.getScriptProperties().getProperty("URL_WEBAPP");
   if (prop) return prop;
-  return typeof URL_WEBAPP_APROVACAO !== "undefined" ? URL_WEBAPP_APROVACAO : "";
+  // Na planilha original o deploy do GitHub gera a URL; numa cópia, usa o App da Web da própria cópia
+  if (ehPlanilhaOriginal_() && typeof URL_WEBAPP_APROVACAO !== "undefined") return URL_WEBAPP_APROVACAO;
+  try { return ScriptApp.getService().getUrl() || ""; } catch (e) { return ""; }
 }
 
 function obterAbaAprovacoes_() {

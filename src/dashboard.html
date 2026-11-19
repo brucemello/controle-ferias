@@ -233,6 +233,18 @@
   .switch input:checked+span::after{left:23px}
   .switch input:disabled+span{opacity:.5;cursor:default}
   .steps{margin:0;padding-left:18px;color:var(--muted);font-size:12.5px;line-height:1.7}
+  .cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .banner{background:linear-gradient(135deg,#1f2a44,#2b3a63);color:#fff;border-radius:var(--radius);padding:16px 18px;margin-bottom:14px;display:flex;gap:14px;align-items:center}
+  .banner i{font-size:26px;color:var(--yellow)}
+  .banner b{font-size:14px}
+  .banner p{margin:3px 0 0;font-size:12.5px;opacity:.85}
+  .membros{width:100%;border-collapse:collapse}
+  .membros td{padding:4px 4px 4px 0}
+  .membros input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12.5px;background:#fbfcfe;outline:0}
+  .membros button{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px}
+  .danger{border:1px solid #f5c2c4;background:#fff6f6;border-radius:12px;padding:12px 14px;margin-top:6px}
+  .danger label{color:#8f1d22!important}
+  .field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;background:#fbfcfe;outline:0;resize:vertical}
   .loading{position:fixed;inset:0;background:rgba(238,241,246,.85);display:grid;place-items:center;z-index:50;font-weight:600;color:var(--muted)}
   .loading i{font-size:26px;color:var(--teal);margin-bottom:8px;display:block;text-align:center}
   .hide{display:none!important}
@@ -244,7 +256,7 @@
     <div class="brand">
       <div class="logo"><i class="fa-solid fa-umbrella-beach"></i></div>
       <b>Controle de Férias</b>
-      <span>Squad Novas Apurações</span>
+      <span id="brandSquad">&nbsp;</span>
     </div>
     <ul class="nav" id="nav">
       <li data-view="geral" class="active"><i class="fa-solid fa-chart-pie"></i>Visão geral</li>
@@ -254,6 +266,7 @@
       <li data-view="conflitos"><i class="fa-solid fa-triangle-exclamation"></i>Conflitos <span class="count hide" id="navConf">0</span></li>
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
       <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
+      <li data-view="config"><i class="fa-solid fa-gear"></i>Configuração</li>
     </ul>
     <button class="cta" onclick="irPara('lancar')"><i class="fa-solid fa-plus"></i> Lançar férias</button>
     <button class="ghost so-dialogo" onclick="google.script.host.close()">Fechar</button>
@@ -379,6 +392,49 @@
           </div>
         </div>
       </section>
+      <!-- CONFIGURAÇÃO -->
+      <section class="view" id="v-config">
+        <div class="banner hide" id="cfgBanner"><i class="fa-solid fa-wand-magic-sparkles"></i><div><b>Bem-vindo! Vamos configurar esta planilha para o seu time.</b><p>Esta cópia ainda não tem gestor nem agenda. Preencha os dados abaixo e, se ela veio com dados de outro time, marque "Apagar dados existentes".</p></div></div>
+        <div class="cfg-grid">
+          <div class="card">
+            <h3><i class="fa-solid fa-users" style="color:var(--teal)"></i>Dados do time</h3>
+            <div class="field"><label>Nome do time</label><input id="cNome" placeholder="Ex.: Squad Obrigações Acessórias"></div>
+            <div class="field"><label>E-mail do gestor (recebe as aprovações)</label><input id="cGestor" placeholder="nome@totvs.com.br"></div>
+            <div class="field"><label>Agenda do time</label><select id="cAgenda"></select>
+              <div style="font-size:11px;color:var(--muted);margin-top:5px">As férias aprovadas e importadas do RH são publicadas nessa agenda. "Criar nova" cria uma agenda sua chamada "Ausências &lt;nome do time&gt;".</div></div>
+            <div class="field"><label>Aviso diário de férias — destinatários (separados por vírgula)</label><input id="cAviso" placeholder="gestor@totvs.com.br,time@totvs.com.br"></div>
+            <div class="field"><label>Webhook do Google Chat (opcional)</label><input id="cWebhook" placeholder="Cole a URL do webhook do espaço do time">
+              <div id="cWebhookInfo" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
+          </div>
+          <div class="card">
+            <h3><i class="fa-solid fa-address-book" style="color:var(--blue)"></i>Pessoas do time<span class="hint">nome como aparece no RH · e-mail para avisos</span></h3>
+            <table class="membros"><tbody id="cMembros"></tbody></table>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn btn-sm" style="color:var(--teal)" onclick="addMembro()"><i class="fa-solid fa-plus"></i> Adicionar pessoa</button>
+              <button class="btn btn-sm" style="color:var(--muted)" onclick="colarMembros()"><i class="fa-regular fa-paste"></i> Colar lista</button>
+            </div>
+            <div class="field hide" id="boxColar" style="margin-top:10px"><label>Uma pessoa por linha: Nome; e-mail</label><textarea id="cColar" rows="5" placeholder="MARIA DA SILVA; maria.silva@totvs.com.br"></textarea>
+              <button class="btn btn-sm" style="color:var(--teal);margin-top:6px" onclick="aplicarColagem()">Adicionar à lista</button></div>
+            <div class="danger">
+              <label style="display:flex;align-items:center;gap:8px;font-weight:700;font-size:12.5px;cursor:pointer"><input type="checkbox" id="cLimpar" onchange="document.getElementById('cConfBox').classList.toggle('hide',!this.checked)"> Apagar dados existentes desta planilha</label>
+              <div style="font-size:11.5px;color:#8f1d22;margin-top:4px">Apaga férias, folgas, aprovações, conflitos, admissões e MVT, e desliga as rotinas automáticas. Use em uma cópia que veio com dados de outro time. Não dá para desfazer.</div>
+              <div id="cConfBox" class="hide" style="margin-top:8px"><input id="cConf" placeholder="Digite APAGAR para confirmar" style="width:100%;padding:8px 10px;border:1px solid #f5c2c4;border-radius:8px;font-family:inherit"></div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;align-items:center;gap:12px">
+          <button class="btn btn-main" id="cSalvar" style="width:auto;padding:12px 26px" onclick="salvarConfig()"><i class="fa-solid fa-floppy-disk"></i> Salvar configuração</button>
+          <div class="msg" id="cMsg" style="margin:0;flex:1"></div>
+        </div>
+        <div class="card hide" id="boxModelo" style="margin-top:14px">
+          <h3><i class="fa-regular fa-copy" style="color:var(--purple)"></i>Transformar esta cópia em modelo em branco</h3>
+          <p style="color:var(--muted);font-size:12.5px;margin:0 0 10px">Apaga todos os dados, a configuração e as rotinas automáticas desta planilha. Use para criar um modelo limpo e compartilhar com outros times: cada um faz uma cópia do modelo e configura o próprio time.</p>
+          <div style="display:flex;gap:8px"><input id="mConf" placeholder="Digite APAGAR para confirmar" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit">
+          <button class="btn" style="background:var(--purple);color:#fff" onclick="virarModelo()">Transformar em modelo</button></div>
+          <div class="msg" id="mMsg"></div>
+        </div>
+      </section>
+
       <!-- SINCRONIZAR -->
       <section class="view" id="v-sinc">
         <div class="sinc-grid">
@@ -394,7 +450,7 @@
 
           <div class="card sinc-card">
             <h3><span class="ic" style="background:var(--blue-l);color:#1d4ed8"><i class="fa-regular fa-calendar-plus"></i></span>Enviar para o Calendar</h3>
-            <p>Publica na agenda <b>Ausências Novas Apurações</b> as férias com status <b>AGENDADOS</b> e as folgas que ainda não foram espelhadas. O que já está na agenda não é duplicado.</p>
+            <p>Publica na <b>agenda do time</b> as férias com status <b>AGENDADOS</b> e as folgas que ainda não foram espelhadas. O que já está na agenda não é duplicado.</p>
             <button class="btn btn-blue" id="bCal" onclick="acaoSinc('cal')"><i class="fa-solid fa-paper-plane"></i> Sincronizar lote agora</button>
             <button class="btn btn-sec" id="bConf" onclick="acaoSinc('conf')" style="margin-left:6px"><i class="fa-solid fa-triangle-exclamation"></i> Atualizar aba de conflitos</button>
             <div class="msg" id="mCal"></div>
@@ -465,6 +521,8 @@ function carregar(){
   google.script.run
     .withSuccessHandler(function(d){
       D=d; HOJE=P(d.hoje);
+      document.getElementById("brandSquad").textContent=d.nomeSquad;
+      if(!d.configurado && !window.__cfgAberta){ window.__cfgAberta=true; setTimeout(function(){ irPara("config"); },0); }
       if(!mesRef) mesRef=new Date(HOJE.getFullYear(),HOJE.getMonth(),1);
       preencherColaboradores();
       renderTudo();
@@ -483,12 +541,13 @@ function renderTudo(){
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
   document.getElementById("titulo").textContent=TITULOS[v];
   if(v==="sinc") carregarSinc();
+  if(v==="config") carregarConfig();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -830,6 +889,63 @@ function salvar(){
       btn.textContent=txt; btn.disabled=false;
     })
     .salvarSugestaoDev(payload);
+}
+
+// ---------- configuração ----------
+var CFG=null;
+function linhaMembro(nome,email){
+  return '<tr><td style="width:58%"><input class="mNome" value="'+esc(nome||"")+'" placeholder="NOME COMPLETO"></td><td><input class="mEmail" value="'+esc(email||"")+'" placeholder="e-mail"></td><td style="width:26px"><button title="Remover" onclick="this.closest(\'tr\').remove()"><i class="fa-solid fa-xmark"></i></button></td></tr>';
+}
+function addMembro(n,e){ document.getElementById("cMembros").insertAdjacentHTML("beforeend",linhaMembro(n,e)); }
+function colarMembros(){ document.getElementById("boxColar").classList.toggle("hide"); }
+function aplicarColagem(){
+  document.getElementById("cColar").value.split(/\n/).forEach(function(l){
+    var p=l.split(/[;\t]/); if(p[0]&&p[0].trim()) addMembro(p[0].trim().toUpperCase(),(p[1]||"").trim());
+  });
+  document.getElementById("cColar").value=""; colarMembros();
+}
+function carregarConfig(){
+  google.script.run.withSuccessHandler(function(c){
+    CFG=c;
+    document.getElementById("cfgBanner").classList.toggle("hide",c.configurado);
+    document.getElementById("cNome").value=c.nomeSquad||"";
+    document.getElementById("cGestor").value=c.emailGestor||c.usuario||"";
+    document.getElementById("cAviso").value=c.emailsAviso||"";
+    document.getElementById("cWebhook").value="";
+    document.getElementById("cWebhookInfo").textContent = c.temWebhook? "Já existe um webhook salvo. Deixe em branco para manter ou cole outro para trocar." : "Sem webhook: o aviso diário vai só por e-mail.";
+    var sel=document.getElementById("cAgenda");
+    sel.innerHTML='<option value="">Selecione…</option><option value="NOVA">➕ Criar nova agenda para o time</option>'+c.agendas.map(function(a){return '<option value="'+esc(a.id)+'">'+esc(a.nome)+'</option>';}).join("");
+    sel.value=c.idAgenda||(c.configurado?"":"NOVA");
+    var tb=document.getElementById("cMembros"); tb.innerHTML="";
+    (c.time||[]).forEach(function(n){ addMembro(String(n).toUpperCase(), c.contatos[String(n).normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toUpperCase()]||""); });
+    if(!(c.time||[]).length) addMembro();
+    document.getElementById("cLimpar").checked=false; document.getElementById("cConfBox").classList.add("hide"); document.getElementById("cConf").value="";
+    document.getElementById("boxModelo").classList.toggle("hide", c.original || !c.podeEditar);
+    var bloqueado=!c.podeEditar;
+    document.getElementById("cSalvar").disabled=bloqueado;
+    if(bloqueado) mostrarMsg("cMsg","warn","🔒 Só o gestor configurado ("+c.emailGestor+") pode alterar esta configuração.");
+  }).withFailureHandler(function(e){ mostrarMsg("cMsg","err","❌ "+e.message); }).obterConfiguracaoTime();
+}
+function virarModelo(){
+  google.script.run.withSuccessHandler(function(res){ mostrarMsg("mMsg","ok","✔️ "+res); window.__cfgAberta=false; carregar(); carregarConfig(); })
+    .withFailureHandler(function(e){ mostrarMsg("mMsg","err","❌ "+e.message); })
+    .transformarEmModelo(document.getElementById("mConf").value);
+}
+function salvarConfig(){
+  var membros=[].map.call(document.querySelectorAll("#cMembros tr"),function(tr){ return {nome:tr.querySelector(".mNome").value,email:tr.querySelector(".mEmail").value}; });
+  var wh=document.getElementById("cWebhook").value.trim();
+  var dados={
+    nomeSquad:document.getElementById("cNome").value, emailGestor:document.getElementById("cGestor").value,
+    idAgenda:document.getElementById("cAgenda").value, emailsAviso:document.getElementById("cAviso").value,
+    webhook: wh || null, membros:membros,
+    limparDados:document.getElementById("cLimpar").checked, confirmacao:document.getElementById("cConf").value
+  };
+  var b=document.getElementById("cSalvar"), html=b.innerHTML;
+  b.disabled=true; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Salvando…';
+  google.script.run.withSuccessHandler(function(res){
+      b.disabled=false; b.innerHTML=html; mostrarMsg("cMsg","ok","✔️ "+res); carregarConfig(); carregar();
+    }).withFailureHandler(function(e){ b.disabled=false; b.innerHTML=html; mostrarMsg("cMsg","err","❌ "+e.message); })
+    .salvarConfiguracaoTime(dados);
 }
 
 // ---------- sincronizar ----------
