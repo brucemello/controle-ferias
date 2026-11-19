@@ -719,6 +719,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
     var nomeOrigem = ssOrigem.getName();
     var agora = new Date();
     var cont = { confirmadas: 0, ajustadas: 0, trocadas: 0, novas: 0, iguais: 0 };
+    var alterados = []; // férias que entraram ou mudaram nesta importação (para o alerta de conflito)
     var vistosRH = {};
 
     for (var i = 0; i < dadosRH.length; i++) {
@@ -759,6 +760,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
           sheetDestino.getRange(linha, 14).setValue("");
           sheetDestino.getRange(linha, 15).setValue("Datas atualizadas pelo RH");
           cont.ajustadas++; mudou = true;
+          alterados.push({ nome: nome, inicio: dIni, fim: dFim, tipo: "datas corrigidas pelo RH" });
         }
         if (!mudou) cont.iguais++;
         continue;
@@ -784,6 +786,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
         sheetDestino.getRange(ls, 16).setValue(agora);
         sheetDestino.getRange(ls, 1, 1, 17).setBackground(null);
         cont.trocadas++;
+        alterados.push({ nome: nome, inicio: dIni, fim: dFim, tipo: "sugestão trocada pelas datas do RH" });
         continue;
       }
 
@@ -797,15 +800,44 @@ function importarDadosPorIdPlanilha(idOrigem) {
       ]);
       sheetDestino.getRange(sheetDestino.getLastRow(), 1, 1, 17).setBackground("#e8f0fe");
       cont.novas++;
+      alterados.push({ nome: nome, inicio: dIni, fim: dFim, tipo: "nova, vinda do RH" });
     }
 
-    return "Importação concluída: " + cont.novas + " férias novas incluídas, " +
+    var qtdAlertas = 0;
+    try { qtdAlertas = alertarConflitosImportacao_(sheetDestino, alterados); } catch (e) { Logger.log("Alerta de conflitos da importação: " + e.message); }
+
+    return (qtdAlertas ? "⚠️ " + qtdAlertas + " férias do RH com conflito (gestor avisado por e-mail). " : "") +
+      "Importação concluída: " + cont.novas + " férias novas incluídas, " +
       cont.trocadas + " sugestões substituídas pelas datas do RH, " +
       cont.confirmadas + " confirmadas como AGENDADOS, " +
       cont.ajustadas + " com datas corrigidas, " + cont.iguais + " já estavam em dia.";
   } catch (e) {
     throw new Error("Erro durante a importação/atualização: " + e.message);
   }
+}
+
+// Férias que vieram do RH já estão agendadas oficialmente, então não passam por aprovação.
+// Mas, se conflitarem com outras, o gestor recebe um e-mail com a lista.
+function alertarConflitosImportacao_(sheet, alterados) {
+  if (!alterados.length || !emailLider_()) return 0;
+  var periodos = listarPeriodosAtivos_(sheet, -1);
+  var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  var itens = [];
+  alterados.forEach(function(a) {
+    if (a.fim < hoje) return;
+    var conf = encontrarConflitos_(a.nome, a.inicio, a.fim, periodos);
+    if (conf.length) itens.push({ a: a, conf: conf });
+  });
+  if (!itens.length) return 0;
+
+  var html = "<p>A importação do RH trouxe férias <b>já agendadas no RH</b> que coincidem com férias de outras pessoas do time. " +
+    "Como já estão agendadas oficialmente, elas não passam pela aprovação do painel; este e-mail é para você avaliar se precisa alinhar a cobertura.</p>";
+  itens.forEach(function(it) {
+    html += "<p style='margin:16px 0 4px'><b>" + esc_(it.a.nome) + "</b>: " + fmt_(it.a.inicio) + " a " + fmt_(it.a.fim) +
+      " <span style='color:#5f6368'>(" + esc_(it.a.tipo) + ")</span></p>" + tabelaConflitosHtml_(it.conf);
+  });
+  enviarEmail_(emailLider_(), "⚠️ Férias importadas do RH com conflito (" + itens.length + ")", "Conflitos na importação do RH", html);
+  return itens.length;
 }
 
 // Remove da agenda o evento "Ausência: NOME [Férias...]" que cobre o período antigo
