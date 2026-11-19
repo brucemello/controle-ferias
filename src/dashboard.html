@@ -21,12 +21,33 @@
   .app{display:flex;height:100vh;overflow:hidden}
 
   /* ---------- Sidebar ---------- */
-  .side{width:208px;flex-shrink:0;background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;padding:22px 14px}
+  .side{width:208px;flex-shrink:0;background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;padding:22px 14px;min-height:0;overflow:hidden}
   .brand{text-align:center;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:14px}
   .brand .logo{width:62px;height:62px;border-radius:50%;margin:0 auto 10px;background:linear-gradient(135deg,var(--teal),var(--blue));display:grid;place-items:center;font-size:26px;color:#fff}
   .brand b{display:block;color:#fff;font-size:14px;letter-spacing:.3px}
   .brand span{font-size:11px;opacity:.75}
-  .nav{list-style:none;margin:0;padding:0;flex:1}
+  .nav{list-style:none;margin:0;padding:0 2px 0 0;flex:1;min-height:0;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent}
+  .nav::-webkit-scrollbar{width:5px}
+  .nav::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:9px}
+  .nav li span.lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* Telas baixas (notebook / janela da planilha): menu compacto */
+  @media (max-height:700px){
+    .side{padding:12px 10px}
+    .brand{padding-bottom:10px;margin-bottom:8px;display:flex;align-items:center;gap:10px;text-align:left}
+    .brand .logo{width:36px;height:36px;font-size:16px;margin:0}
+    .brand b{font-size:12.5px}
+    .brand span{font-size:10.5px}
+    .nav li{padding:7px 10px;margin-bottom:1px;font-size:12.5px}
+    .side .cta{padding:8px;margin:6px 0 6px}
+    .side .ghost{padding:6px}
+    .top{padding:10px 18px 8px}
+    .top h1{font-size:17px}
+    .content{padding:4px 18px 18px}
+  }
+  @media (max-height:520px){
+    .brand span{display:none}
+    .side .cta{display:none}
+  }
   .nav li{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:500;margin-bottom:3px;transition:.15s}
   .nav li i{width:16px;text-align:center;opacity:.85}
   .nav li:hover{background:var(--side2);color:#fff}
@@ -280,8 +301,8 @@
   <aside class="side">
     <div class="brand">
       <div class="logo"><i class="fa-solid fa-umbrella-beach"></i></div>
-      <b>Controle de Férias</b>
-      <span id="brandSquad">&nbsp;</span>
+      <div><b>Controle de Férias</b>
+      <span id="brandSquad">&nbsp;</span></div>
     </div>
     <ul class="nav" id="nav">
       <li data-view="geral" class="active"><i class="fa-solid fa-chart-pie"></i>Visão geral</li>

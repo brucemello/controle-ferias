@@ -23,8 +23,8 @@ function doGetDashboard_() {
 function abrirDashboard() {
   vincularPlanilha_();
   const html = HtmlService.createHtmlOutputFromFile("dashboard")
-    .setWidth(1240)
-    .setHeight(800);
+    .setWidth(1200)
+    .setHeight(720);
   SpreadsheetApp.getUi().showModalDialog(html, " ");
 }
 
