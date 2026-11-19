@@ -40,3 +40,17 @@ jobs:
       - run: clasp push --force
 
       - run: clasp deploy -i "${{ secrets.DEPLOYMENT_ID }}" -d "Deploy ${{ github.sha }}"
+
+      # Planilha modelo (opcional): recebe o mesmo código, sem implantação.
+      # Ativa quando o secret SCRIPT_ID_MODELO existir.
+      - name: Atualizar planilha modelo
+        env:
+          MODELO: ${{ secrets.SCRIPT_ID_MODELO }}
+        run: |
+          if [ -z "$MODELO" ]; then
+            echo "Secret SCRIPT_ID_MODELO não configurado: modelo ignorado."
+            exit 0
+          fi
+          echo "{\"scriptId\":\"$MODELO\",\"rootDir\":\"src\"}" > .clasp.json
+          clasp push --force
+          echo "Modelo atualizado."
