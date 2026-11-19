@@ -136,8 +136,13 @@ function simularConflitos(linha) {
 // =========================================================================
 // 3. PÁGINA DE APROVAÇÃO (App da Web)
 // =========================================================================
+// Link do App da Web:
+//  - com ?id=...&t=... (botão do e-mail) → página de aprovação
+//  - sem parâmetros → dashboard de férias
 function doGet(e) {
-  return doGetAprovacao(e);
+  const p = (e && e.parameter) || {};
+  if (p.id && p.t) return doGetAprovacao(e);
+  return doGetDashboard_();
 }
 
 function doGetAprovacao(e) {
@@ -473,7 +478,7 @@ function planilha_() {
   try { ss = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) {}
   if (ss) return ss;
   const id = PropertiesService.getScriptProperties().getProperty("ID_PLANILHA");
-  if (!id) throw new Error("ID da planilha não configurado. Rode 'Configurar aprovação de conflitos' no menu Apoio Gestão.");
+  if (!id) throw new Error("A planilha ainda não foi vinculada ao link. Abra a planilha uma vez (o menu Apoio Gestão faz o vínculo) e tente de novo.");
   return SpreadsheetApp.openById(id);
 }
 

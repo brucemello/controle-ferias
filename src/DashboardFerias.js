@@ -12,7 +12,16 @@ const DASH_CONFIG = {
   diasProximos: 30     // "saem em breve": quem sai nos próximos N dias
 };
 
+// Versão pelo link do App da Web (página inteira, sem botão Fechar)
+function doGetDashboard_() {
+  return HtmlService.createHtmlOutputFromFile("dashboard")
+    .append("<script>window.MODO_WEB=true;document.querySelectorAll('.so-dialogo').forEach(function(el){el.style.display='none';});</script>")
+    .setTitle("Controle de Férias · Squad Novas Apurações")
+    .addMetaTag("viewport", "width=device-width, initial-scale=1");
+}
+
 function abrirDashboard() {
+  vincularPlanilha_();
   const html = HtmlService.createHtmlOutputFromFile("dashboard")
     .setWidth(1240)
     .setHeight(800);
@@ -133,4 +142,13 @@ function obterDadosDashboard() {
     pendentes: pendentes,
     config: DASH_CONFIG
   };
+}
+
+// Guarda o ID da planilha para o App da Web (que roda sem planilha aberta)
+function vincularPlanilha_() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const props = PropertiesService.getScriptProperties();
+    if (ss && props.getProperty("ID_PLANILHA") !== ss.getId()) props.setProperty("ID_PLANILHA", ss.getId());
+  } catch (e) {}
 }

@@ -37,6 +37,7 @@ function enviarEmailConflitosLiderDireto() {
 // ATUALIZAÇÃO DO MENU
 // =========================================================================================
 function onOpen() {
+  vincularPlanilha_();
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Apoio Gestão')
     .addItem('📊 Abrir Dashboard de Férias', 'abrirDashboard')
