@@ -245,6 +245,31 @@
   .danger{border:1px solid #f5c2c4;background:#fff6f6;border-radius:12px;padding:12px 14px;margin-top:6px}
   .danger label{color:#8f1d22!important}
   .field textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;background:#fbfcfe;outline:0;resize:vertical}
+  .prog-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+  .prog-top .bar{flex:1;height:10px;background:#e3e7ee;border-radius:99px;overflow:hidden}
+  .prog-top .bar div{height:100%;background:linear-gradient(90deg,var(--teal),#0ea5e9);transition:width .4s}
+  .step{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);margin-bottom:10px;border-left:5px solid #d5dae3;overflow:hidden}
+  .step.ok{border-left-color:var(--teal)}
+  .step.warn{border-left-color:var(--yellow)}
+  .step.todo{border-left-color:var(--coral)}
+  .step-h{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer}
+  .step-n{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:13px;flex-shrink:0;background:#eef0f4;color:var(--muted)}
+  .step.ok .step-n{background:var(--teal);color:#fff}
+  .step.warn .step-n{background:var(--yellow);color:#5c4300}
+  .step.todo .step-n{background:var(--coral);color:#fff}
+  .step-t{font-weight:700;font-size:13.5px}
+  .step-d{font-size:12px;color:var(--muted);margin-top:2px}
+  .step-h .chev{margin-left:auto;color:var(--muted);transition:.2s}
+  .step.open .chev{transform:rotate(180deg)}
+  .step-b{display:none;padding:0 16px 14px 58px;font-size:12.5px;line-height:1.6}
+  .step.open .step-b{display:block}
+  .step-b ol{margin:4px 0 10px;padding-left:18px}
+  .step-b .dica{background:#f6f7fa;border-radius:8px;padding:8px 10px;color:var(--muted);margin-bottom:10px}
+  .step-b kbd{background:#eef0f4;border-radius:4px;padding:1px 5px;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--ink)}
+  .acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .acoes .btn{padding:8px 13px;font-size:12px;width:auto}
+  .btn-out{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .tag-op{font-size:10px;font-weight:700;color:var(--muted);background:#eef0f4;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}
   .loading{position:fixed;inset:0;background:rgba(238,241,246,.85);display:grid;place-items:center;z-index:50;font-weight:600;color:var(--muted)}
   .loading i{font-size:26px;color:var(--teal);margin-bottom:8px;display:block;text-align:center}
   .hide{display:none!important}
@@ -267,6 +292,7 @@
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
       <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
       <li data-view="config"><i class="fa-solid fa-gear"></i>Configuração</li>
+      <li data-view="setup"><i class="fa-solid fa-list-check"></i>Primeiros passos <span class="count hide" id="navSetup">0</span></li>
     </ul>
     <button class="cta" onclick="irPara('lancar')"><i class="fa-solid fa-plus"></i> Lançar férias</button>
     <button class="ghost so-dialogo" onclick="google.script.host.close()">Fechar</button>
@@ -392,6 +418,19 @@
           </div>
         </div>
       </section>
+      <!-- PRIMEIROS PASSOS -->
+      <section class="view" id="v-setup">
+        <div class="prog-top"><b id="spTxt" style="white-space:nowrap">Verificando…</b><div class="bar"><div id="spBar" style="width:0%"></div></div>
+          <button class="btn btn-out" onclick="carregarSetup()" style="padding:8px 12px"><i class="fa-solid fa-rotate"></i> Verificar de novo</button></div>
+        <div id="spLista"></div>
+        <div class="card" style="margin-top:4px;display:flex;align-items:center;gap:12px">
+          <i class="fa-solid fa-paper-plane" style="color:var(--teal);font-size:18px"></i>
+          <div style="flex:1"><b>Teste final</b><div style="color:var(--muted);font-size:12px">Envia um e-mail de teste para você com o nome do time, o gestor e o link do dashboard.</div></div>
+          <button class="btn btn-main" style="width:auto" onclick="spAcao('teste')">Enviar e-mail de teste</button>
+        </div>
+        <div class="msg" id="spMsg"></div>
+      </section>
+
       <!-- CONFIGURAÇÃO -->
       <section class="view" id="v-config">
         <div class="banner hide" id="cfgBanner"><i class="fa-solid fa-wand-magic-sparkles"></i><div><b>Bem-vindo! Vamos configurar esta planilha para o seu time.</b><p>Esta cópia ainda não tem gestor nem agenda. Preencha os dados abaixo e, se ela veio com dados de outro time, marque "Apagar dados existentes".</p></div></div>
@@ -522,7 +561,8 @@ function carregar(){
     .withSuccessHandler(function(d){
       D=d; HOJE=P(d.hoje);
       document.getElementById("brandSquad").textContent=d.nomeSquad;
-      if(!d.configurado && !window.__cfgAberta){ window.__cfgAberta=true; setTimeout(function(){ irPara("config"); },0); }
+      if(!d.configurado && !window.__cfgAberta){ window.__cfgAberta=true; setTimeout(function(){ irPara("setup"); },0); }
+      if(!window.__spChecado){ window.__spChecado=true; google.script.run.withSuccessHandler(atualizarBadgeSetup).verificarSetup(); }
       if(!mesRef) mesRef=new Date(HOJE.getFullYear(),HOJE.getMonth(),1);
       preencherColaboradores();
       renderTudo();
@@ -541,13 +581,14 @@ function renderTudo(){
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
   document.getElementById("titulo").textContent=TITULOS[v];
   if(v==="sinc") carregarSinc();
   if(v==="config") carregarConfig();
+  if(v==="setup") carregarSetup();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -889,6 +930,107 @@ function salvar(){
       btn.textContent=txt; btn.disabled=false;
     })
     .salvarSugestaoDev(payload);
+}
+
+// ---------- primeiros passos ----------
+var LOOKER_URL="https://datastudio.google.com/reporting/736b92c7-f9a6-46bb-aa02-09381fa109c8/page/p_xzbuvx8kfd";
+var SP=null, spAbertos={};
+function k(t){ return '<kbd>'+t+'</kbd>'; }
+function btn(txt,acao,cls){ return '<button class="btn '+(cls||"btn-out")+'" onclick="'+acao+'">'+txt+'</button>'; }
+function lnk(txt,url){ return '<a class="btn btn-out" style="text-decoration:none;display:inline-block" target="_blank" href="'+url+'">'+txt+' <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:10px"></i></a>'; }
+function editorUrl(){ return "https://script.google.com/home/projects/"+SP.idScript+"/edit"; }
+
+function conteudoPasso(p){
+  var C={
+    permissoes:{t:"Autorizar os acessos do script", b:
+      '<div class="dica">Na primeira vez que você abre o dashboard pelo menu, o Google pede as permissões. Se alguma ficou de fora, faça assim:</div>'+
+      '<ol><li>No menu da planilha, clique em '+k("Extensões")+' → '+k("Apps Script")+'.</li>'+
+      '<li>Na barra de cima do editor, escolha a função '+k("autorizarPermissoes")+' e clique em '+k("Executar")+'.</li>'+
+      '<li>Escolha a sua conta TOTVS. Se aparecer <i>"O Google não verificou este app"</i>, clique em '+k("Avançado")+' → '+k("Acessar … (não seguro)")+'. O app é o script desta planilha.</li>'+
+      '<li>Clique em '+k("Permitir")+' e volte aqui para clicar em <b>Verificar de novo</b>.</li></ol>'+
+      '<div class="acoes">'+lnk("Abrir o editor do Apps Script",editorUrl())+btn('<i class="fa-solid fa-rotate"></i> Verificar de novo',"carregarSetup()")+'</div>'},
+    time:{t:"Informar o time e o gestor", b:
+      '<ol><li>Abra a tela <b>Configuração</b>.</li><li>Preencha o <b>nome do time</b> e o <b>e-mail do gestor</b>, que recebe os pedidos de aprovação quando houver conflito de férias.</li><li>Se esta planilha veio com dados de outro time, marque <b>Apagar dados existentes</b> e digite APAGAR.</li><li>Clique em <b>Salvar configuração</b>.</li></ol>'+
+      '<div class="acoes">'+btn('<i class="fa-solid fa-gear"></i> Ir para Configuração',"irPara(\'config\')","btn-main")+'</div>'},
+    pessoas:{t:"Cadastrar as pessoas do time", b:
+      '<div class="dica"><i class="fa-solid fa-triangle-exclamation" style="color:#b06000"></i> Use o <b>nome completo exatamente como aparece no relatório do RH</b> (Looker). É por ele que a importação reconhece as férias de cada pessoa.</div>'+
+      '<ol><li>Em <b>Configuração → Pessoas do time</b>, adicione cada pessoa com o e-mail. O e-mail é usado para avisar sobre conflitos e decisões.</li><li>Para ir mais rápido, use <b>Colar lista</b> com uma pessoa por linha: <i>NOME; e-mail</i>.</li></ol>'+
+      '<div class="acoes">'+btn('<i class="fa-solid fa-address-book"></i> Ir para Configuração',"irPara(\'config\')","btn-main")+'</div>'},
+    agenda:{t:"Escolher a agenda do time", b:
+      '<ol><li>Em <b>Configuração → Agenda do time</b>, escolha uma agenda sua ou <b>Criar nova agenda para o time</b>.</li>'+
+      '<li>Para o time ver as ausências, compartilhe a agenda: no Google Agenda, passe o mouse na agenda → '+k("⋮")+' → '+k("Configurações e compartilhamento")+' → '+k("Compartilhar com pessoas específicas")+' → adicione o grupo do time com <i>"Ver todos os detalhes do evento"</i>.</li></ol>'+
+      '<div class="acoes">'+btn('<i class="fa-regular fa-calendar"></i> Ir para Configuração',"irPara(\'config\')","btn-main")+lnk("Abrir Google Agenda","https://calendar.google.com/calendar/r/settings")+'</div>'},
+    webapp:{t:"Publicar o link de aprovação (App da Web)", b:
+      '<div class="dica">Isso faz funcionar o botão <b>"Analisar e decidir"</b> dos e-mails de conflito e permite abrir o dashboard por um link. É feito uma vez só.</div>'+
+      '<ol><li>Abra o editor: '+k("Extensões")+' → '+k("Apps Script")+'.</li>'+
+      '<li>No canto superior direito, clique em '+k("Implantar")+' → '+k("Nova implantação")+'.</li>'+
+      '<li>Clique na engrenagem ⚙️ ao lado de <i>"Selecionar tipo"</i> → '+k("App da Web")+'.</li>'+
+      '<li>Descrição: <i>Aprovação de férias</i> · Executar como: '+k("Eu")+' · Quem pode acessar: '+k("Somente eu")+' (ou '+k("Qualquer pessoa da TOTVS")+', se quiser compartilhar o link do dashboard com o time).</li>'+
+      '<li>Clique em '+k("Implantar")+', autorize se o Google pedir e volte aqui para clicar em <b>Verificar de novo</b>.</li></ol>'+
+      '<div class="acoes">'+lnk("Abrir o editor do Apps Script",editorUrl())+(p.url? lnk("Testar o link",p.url):"")+btn('<i class="fa-solid fa-rotate"></i> Verificar de novo',"carregarSetup()")+'</div>'},
+    rh:{t:"Trazer as férias do RH (Looker Studio)", b:
+      '<ol><li>Abra o relatório de férias do RH no Looker Studio e deixe a tabela com o <b>seu time</b>.</li>'+
+      '<li>Na tabela <b>Férias - Nominal Geral</b>, clique em '+k("⋮")+' → '+k("Exportar gráfico…")+' → '+k("Google Planilhas")+' → '+k("Exportar")+'.</li>'+
+      '<li>Não precisa copiar o link: o script encontra no seu Drive a planilha <i>Férias_Férias_Tabela</i> mais recente.</li>'+
+      '<li>Clique em <b>Importar agora</b>. Depois, a rotina automática (próxima etapa) faz isso sozinha a cada nova exportação.</li></ol>'+
+      '<div class="acoes">'+lnk("Abrir relatório no Looker",LOOKER_URL)+btn('<i class="fa-solid fa-file-import"></i> Importar agora',"spAcao(\'importar\')","btn-orange")+btn('<i class="fa-solid fa-rotate"></i> Verificar de novo',"carregarSetup()")+'</div>'},
+    sinc:{t:"Ligar a sincronização automática", b:
+      '<div class="dica">Com ela ligada, sem ninguém abrir a planilha: em até 1h depois de cada exportação do Looker (e todo dia às 7h), o script importa do RH, publica na agenda e atualiza os conflitos. Se algo falhar, o gestor recebe um e-mail.</div>'+
+      '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'sincOff\')") : btn('<i class="fa-solid fa-power-off"></i> Ligar agora',"spAcao(\'sincOn\')","btn-main"))+'</div>'},
+    aviso:{t:"Aviso diário de férias", op:true, b:
+      '<div class="dica">Todo dia às 8h, envia por e-mail (e para o Chat, se houver webhook) quem sai de férias nos próximos 30 dias. Os destinatários ficam em <b>Configuração</b>.</div>'+
+      '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'avisoOff\')") : btn('<i class="fa-solid fa-bell"></i> Ligar agora',"spAcao(\'avisoOn\')","btn-main"))+btn("Destinatários","irPara(\'config\')")+'</div>'},
+    abertura:{t:"Abrir o dashboard ao abrir a planilha", op:true, b:
+      '<div class="dica">Ligado, o dashboard aparece sozinho quando <b>você</b> abre a planilha. Cada pessoa liga para si.</div>'+
+      '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'abOff\')") : btn('<i class="fa-solid fa-display"></i> Ligar agora',"spAcao(\'abOn\')","btn-main"))+'</div>'}
+  };
+  return C[p.id];
+}
+
+function atualizarBadgeSetup(r){
+  var pend=r.passos.filter(function(p){ return !p.ok && !p.opcional; }).length;
+  var b=document.getElementById("navSetup"); b.textContent=pend; b.classList.toggle("hide",!pend);
+}
+
+function carregarSetup(){
+  document.getElementById("spTxt").textContent="Verificando…";
+  google.script.run.withSuccessHandler(function(r){
+    SP=r; atualizarBadgeSetup(r);
+    var obrig=r.passos.filter(function(p){return !p.opcional;}), feitos=obrig.filter(function(p){return p.ok;}).length;
+    document.getElementById("spTxt").textContent= feitos===obrig.length? "🎉 Tudo pronto! "+feitos+" de "+obrig.length+" etapas" : feitos+" de "+obrig.length+" etapas concluídas";
+    document.getElementById("spBar").style.width=(feitos/obrig.length*100)+"%";
+    var primeiroPendente=null;
+    document.getElementById("spLista").innerHTML=r.passos.map(function(p,i){
+      var c=conteudoPasso(p), est=p.ok?"ok":p.parcial?"warn":p.opcional?"":"todo";
+      if(!p.ok && !p.opcional && primeiroPendente===null) primeiroPendente=p.id;
+      var aberto = spAbertos[p.id]!==undefined ? spAbertos[p.id] : false;
+      return '<div class="step '+est+(aberto?" open":"")+'" id="st-'+p.id+'"><div class="step-h" onclick="togglePasso(\''+p.id+'\')">'+
+        '<div class="step-n">'+(p.ok?'<i class="fa-solid fa-check"></i>':(i+1))+'</div>'+
+        '<div><div class="step-t">'+c.t+(c.op?'<span class="tag-op">opcional</span>':'')+'</div><div class="step-d">'+esc(p.detalhe)+'</div></div>'+
+        '<i class="fa-solid fa-chevron-down chev"></i></div><div class="step-b">'+c.b+'</div></div>';
+    }).join("");
+    if(primeiroPendente && spAbertos[primeiroPendente]===undefined) togglePasso(primeiroPendente,true);
+  }).withFailureHandler(function(e){ mostrarMsg("spMsg","err","❌ "+e.message); }).verificarSetup();
+}
+function togglePasso(id,forcar){
+  var el=document.getElementById("st-"+id); if(!el) return;
+  var abrir = forcar===true ? true : !el.classList.contains("open");
+  el.classList.toggle("open",abrir); spAbertos[id]=abrir;
+}
+function spAcao(a){
+  var run=google.script.run.withSuccessHandler(function(res){
+      mostrarMsg("spMsg","ok","✔️ "+(typeof res==="string"? res : "Feito."));
+      carregarSetup(); if(a==="importar") carregar();
+    }).withFailureHandler(function(e){ mostrarMsg("spMsg","err","❌ "+e.message); });
+  mostrarMsg("spMsg","warn","⏳ Processando…");
+  if(a==="importar") run.importarRhDashboard("", "auto");
+  else if(a==="sincOn") run.configurarSincronizacaoAutomatica(true);
+  else if(a==="sincOff") run.configurarSincronizacaoAutomatica(false);
+  else if(a==="avisoOn") run.ativarAvisoDiario(true);
+  else if(a==="avisoOff") run.ativarAvisoDiario(false);
+  else if(a==="abOn") run.ativarAberturaAutomatica(true);
+  else if(a==="abOff") run.ativarAberturaAutomatica(false);
+  else if(a==="teste") run.enviarEmailTeste();
 }
 
 // ---------- configuração ----------
