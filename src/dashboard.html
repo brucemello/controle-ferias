@@ -405,7 +405,7 @@
               <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;font-size:12px;color:var(--muted)"><span id="sAutoTxt">Desligada</span><label class="switch"><input type="checkbox" id="sAuto" onchange="alternarAuto()"><span></span></label></span></h3>
             <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px">
               <div>
-                <p style="margin-bottom:6px">Quando ligada, roda <b>todo dia entre <span id="sHora">7</span>h e <span id="sHora2">8</span>h</b>, sem ninguém abrir a planilha:</p>
+                <p style="margin-bottom:6px">Quando ligada, roda sozinha, sem ninguém abrir a planilha: <b>em até 1 hora depois que você exportar</b> a tabela do Looker, e também <b>todo dia entre <span id="sHora">7</span>h e <span id="sHora2">8</span>h</b>. Em cada rodada:</p>
                 <ol class="steps"><li>importa do RH (a exportação mais recente do Looker ou o ID fixo, conforme escolhido acima);</li><li>publica na agenda o que estiver AGENDADOS e ainda não espelhado;</li><li>atualiza a aba Controle de Conflitos.</li></ol>
                 <p style="margin-top:8px">Se algo falhar, você recebe um e-mail. Lançamentos feitos pelo painel ou por aqui já vão para a agenda na hora (ou depois da aprovação, se houver conflito).</p>
                 <p id="sSoGestor" class="hide" style="color:#8a6100"><i class="fa-solid fa-lock"></i> Só o gestor pode ligar ou desligar.</p>
@@ -877,7 +877,7 @@ function alternarAuto(){
   var sw=document.getElementById("sAuto"), ligar=sw.checked;
   sw.disabled=true; setTxt("sAutoTxt", ligar? "Ligando…" : "Desligando…");
   google.script.run.withSuccessHandler(function(st){
-      mostrarMsg("mAuto","ok", ligar? "✔️ Sincronização automática ligada: roda todo dia entre "+st.hora+"h e "+(st.hora+1)+"h." : "✔️ Sincronização automática desligada.");
+      mostrarMsg("mAuto","ok", ligar? "✔️ Sincronização automática ligada: importa em até 1h após cada exportação do Looker e todo dia entre "+st.hora+"h e "+(st.hora+1)+"h." : "✔️ Sincronização automática desligada.");
       carregarSinc();
     }).withFailureHandler(function(e){
       sw.checked=!ligar; sw.disabled=false; setTxt("sAutoTxt", sw.checked? "Ligada":"Desligada"); mostrarMsg("mAuto","err","❌ "+e.message);

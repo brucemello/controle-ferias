@@ -8,6 +8,7 @@ const SINC_CONFIG = {
   idRhPadrao: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE", // mesmo padrão de importarDadosPorIdPlanilha
   horaAutomatica: 7, // a rotina diária roda entre 7h e 8h
   funcaoAutomatica: "sincronizacaoAutomatica",
+  funcaoVigia: "verificarNovaExportacao", // roda de hora em hora procurando exportação nova
   // Nome das planilhas geradas pelo "Exportar > Google Planilhas" do Looker Studio
   tituloExportacao: "Férias_Férias_Tabela"
 };
@@ -77,6 +78,7 @@ function importarRhDashboard(idRH, modo) {
     props.setProperty("ID_PLANILHA_RH", idRH);
   }
   const origem = idRhParaImportar_();
+  props.setProperty("RH_ULTIMO_ID", origem.id);
   const res = String(importarDadosPorIdPlanilha(origem.id)).replace(/\n/g, " ") +
     (modo === "fixo" ? "" : " (origem: " + origem.nome + " de " + origem.criada + ")");
   registrarUltimaSinc_("Importação manual", res);
@@ -100,25 +102,40 @@ function configurarSincronizacaoAutomatica(ativar) {
   validarGestor_();
   vincularPlanilha_();
   ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === SINC_CONFIG.funcaoAutomatica)
+    .filter(t => [SINC_CONFIG.funcaoAutomatica, SINC_CONFIG.funcaoVigia].indexOf(t.getHandlerFunction()) !== -1)
     .forEach(t => ScriptApp.deleteTrigger(t));
   if (ativar) {
     ScriptApp.newTrigger(SINC_CONFIG.funcaoAutomatica)
       .timeBased().everyDays(1).atHour(SINC_CONFIG.horaAutomatica).inTimezone("America/Sao_Paulo")
       .create();
+    ScriptApp.newTrigger(SINC_CONFIG.funcaoVigia).timeBased().everyHours(1).create();
   }
   return obterStatusSincronizacao();
 }
 
+// De hora em hora: se apareceu uma exportação do Looker mais nova que a última
+// importada, roda a sincronização completa na hora (sem esperar as 7h).
+function verificarNovaExportacao() {
+  if (modoRh_() !== "auto") return;
+  const ex = exportacaoMaisRecente_();
+  if (!ex) return;
+  if (PropertiesService.getScriptProperties().getProperty("RH_ULTIMO_ID") === ex.id) return;
+  sincronizacaoAutomatica("Nova exportação detectada");
+}
+
 // Rotina diária: importa do RH, publica o lote na agenda e atualiza conflitos.
 // Em caso de erro, avisa o gestor por e-mail.
-function sincronizacaoAutomatica() {
+function sincronizacaoAutomatica(motivo) {
+  if (typeof motivo !== "string") motivo = "Automática (diária)"; // gatilho passa um objeto de evento
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) return;
   const etapas = [];
   const erros = [];
   try {
     const origem = idRhParaImportar_();
     etapas.push(String(importarDadosPorIdPlanilha(origem.id)).replace(/\n/g, " ") +
       (origem.criada ? " (" + origem.nome + " de " + origem.criada + ")" : ""));
+    PropertiesService.getScriptProperties().setProperty("RH_ULTIMO_ID", origem.id);
   } catch (e) { erros.push("Importação do RH: " + e.message); }
 
   try { etapas.push("Agenda: " + publicarLoteCalendario_() + " evento(s) novo(s)."); }
@@ -127,7 +144,8 @@ function sincronizacaoAutomatica() {
   try { atualizarAbaControleConflitos(false); etapas.push("Conflitos atualizados."); }
   catch (e) { erros.push("Controle de conflitos: " + e.message); }
 
-  registrarUltimaSinc_("Automática", etapas.concat(erros.map(x => "❌ " + x)).join(" · "));
+  registrarUltimaSinc_(motivo, etapas.concat(erros.map(x => "❌ " + x)).join(" · "));
+  lock.releaseLock();
 
   if (erros.length) {
     enviarEmail_(emailGestor_(), "❌ Falha na sincronização automática de férias", "Sincronização automática",
