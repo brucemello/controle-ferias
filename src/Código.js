@@ -694,115 +694,137 @@ function inicializarTodasAbas() {
 // =========================================================================================
 // MOTOR DE IMPORTAÇÃO E CONCILIAÇÃO INTELIGENTE DE SUGESTÕES (VERSÃO CORRIGIDA)
 // =========================================================================================
+// Importa a tabela de férias do RH (exportação do Looker Studio "Férias_Férias_Tabela").
+// Para cada férias AGENDADA no RH:
+//  1. já existe no controle (mesmo nome e início): confirma como AGENDADOS e corrige o fim, se mudou;
+//  2. existe uma Sugestão do dev do mesmo colaborador que se sobrepõe: troca pelas datas do RH
+//     (e remove da agenda o evento com as datas antigas);
+//  3. não existe: inclui uma linha nova "Importado do RH", que o envio em lote publica na agenda.
 function importarDadosPorIdPlanilha(idOrigem) {
   try {
-    var idPlanilhaRH = (idOrigem && idOrigem.trim() !== "") ? idOrigem.trim() : "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE";
-    
+    var idPlanilhaRH = (idOrigem && String(idOrigem).trim() !== "") ? String(idOrigem).trim() : "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE";
     var ssOrigem = SpreadsheetApp.openById(idPlanilhaRH);
-    var ssDestino = obterPlanilhaAtiva();
-    
     var sheetRH = ssOrigem.getSheetByName("Sheet1") || ssOrigem.getSheets()[0];
-    var sheetDestino = ssDestino.getSheetByName("Controle Consolidado - 2026");
-    
-    if (!sheetRH || !sheetDestino) {
-      throw new Error("Não foi possível localizar as abas necessárias para a importação.");
-    }
-    
-    var dadosRH = sheetRH.getRange(2, 1, sheetRH.getLastRow() - 1, sheetRH.getLastColumn()).getValues();
-    var ultimaLinhaDestino = sheetDestino.getLastRow();
-    
-    if (ultimaLinhaDestino <= 1) {
-      return "Planilha de destino vazia. Preencha os cabeçalhos antes de importar.";
-    }
-    
-    var rangeDestino = sheetDestino.getRange(2, 1, ultimaLinhaDestino - 1, 17);
-    var dadosDestino = rangeDestino.getValues();
-    
-    var atualizadosCount = 0;
-    
-    // Função para normalizar datas no fuso horário do Script
-    var formatarDataPadrao = function(valor) {
-      if (!valor) return "";
-      if (valor instanceof Date) {
-        return Utilities.formatDate(valor, Session.getScriptTimeZone(), "dd/MM/yyyy");
-      }
-      var str = valor.toString().trim();
-      if (str.includes("/")) return str;
-      var d = new Date(str);
-      if (!isNaN(d.getTime())) {
-        return Utilities.formatDate(d, Session.getScriptTimeZone(), "dd/MM/yyyy");
-      }
-      return str;
+    var sheetDestino = obterPlanilhaAtiva().getSheetByName("Controle Consolidado - 2026");
+    if (!sheetRH || !sheetDestino) throw new Error("Não foi possível localizar as abas necessárias para a importação.");
+    if (sheetRH.getLastRow() < 2) return "A planilha do RH está vazia.";
+
+    // Localiza as colunas pelo cabeçalho (com posição padrão como reserva)
+    var cab = sheetRH.getRange(1, 1, 1, sheetRH.getLastColumn()).getValues()[0].map(function(c) { return normalizar_(c); });
+    function col(nome, padrao) { var i = cab.indexOf(normalizar_(nome)); return i >= 0 ? i : padrao; }
+    var C = {
+      periodo: col("Período Selecinado", 0), nome: col("Nome", 1), tempo: col("Tempo TOTVS", 3), funcao: col("Funcao", 4),
+      situacao: col("Situação Férias", 13), iniAq: col("Início Período Aquisitivo", 14), fimAq: col("Fim Período Aquisitivo", 15),
+      limite: col("Data Limite", 16), agendamento: col("Agendamento", 17), ini: col("Data Inicio Programação", 18),
+      fim: col("Data Fim Programação", 19), saldo: col("Saldo Dias", 20)
     };
 
-    // 1. Mapeia os agendamentos confirmados vindos do RH (Planilha Origem)
-    var agendadosRH = [];
+    var dadosRH = sheetRH.getRange(2, 1, sheetRH.getLastRow() - 1, sheetRH.getLastColumn()).getValues();
+    var nomeOrigem = ssOrigem.getName();
+    var agora = new Date();
+    var cont = { confirmadas: 0, ajustadas: 0, trocadas: 0, novas: 0, iguais: 0 };
+    var vistosRH = {};
+
     for (var i = 0; i < dadosRH.length; i++) {
-      var row = dadosRH[i];
-      var nomeRH = row[1] ? row[1].toString().toUpperCase().trim() : "";
-      var statusRH = row[17] ? row[17].toString().trim() : ""; // Coluna R (Agendamento)
-      var dtIniRH = formatarDataPadrao(row[18]);               // Coluna S (Data Início Programação)
-      var dtFimRH = formatarDataPadrao(row[19]);               // Coluna T (Data Fim Programação)
-      
-      if (nomeRH && statusRH.toUpperCase() === "AGENDADOS" && dtIniRH) {
-        agendadosRH.push({
-          nome: nomeRH,
-          dataInicio: dtIniRH,
-          dataFim: dtFimRH
-        });
+      var r = dadosRH[i];
+      var nome = String(r[C.nome] || "").trim().toUpperCase();
+      var agend = normalizar_(r[C.agendamento]);
+      var dIni = parseData_(r[C.ini]), dFim = parseData_(r[C.fim]);
+      if (!nome || agend !== "AGENDADOS" || !dIni || !dFim) continue;
+      var chaveRH = nome + "|" + dIni.getTime();
+      if (vistosRH[chaveRH]) continue;
+      vistosRH[chaveRH] = true;
+
+      // Relê o destino a cada item (linhas podem ter sido incluídas/alteradas)
+      var ult = sheetDestino.getLastRow();
+      var dest = ult > 1 ? sheetDestino.getRange(2, 1, ult - 1, 17).getValues() : [];
+
+      // 1. Mesmo nome e mesmo início
+      var achou = -1;
+      for (var j = 0; j < dest.length; j++) {
+        var dj = parseData_(dest[j][9]);
+        if (String(dest[j][1]).trim().toUpperCase() === nome && dj && dj.getTime() === dIni.getTime()) { achou = j; break; }
       }
-    }
-    
-    // 2. Compara com a Planilha de Destino
-    for (var j = 0; j < dadosDestino.length; j++) {
-      var nomeDest = dadosDestino[j][1] ? dadosDestino[j][1].toString().toUpperCase().trim() : "";
-      var statusDest = dadosDestino[j][8] ? dadosDestino[j][8].toString().trim() : ""; // Coluna I (Agendamento)
-      var dtIniDest = formatarDataPadrao(dadosDestino[j][9]);                          // Coluna J (Data Início)
-      var dtFimDest = formatarDataPadrao(dadosDestino[j][10]);                         // Coluna K (Data Fim)
-      
-      // Se a linha for uma Sugestão
-      if (statusDest.toUpperCase().includes("SUGESTÃO")) {
-        for (var k = 0; k < agendadosRH.length; k++) {
-          var itemRH = agendadosRH[k];
-          
-          // Regra de Match: Se o nome for igual E (as datas baterem OU se a data de início da sugestão estiver vazia na planilha de destino)
-          var matchNome = (nomeDest === itemRH.nome);
-          var matchData = (dtIniDest === itemRH.dataInicio) || (dtIniDest === "");
-          
-          if (matchNome && matchData) {
-            var linhaRealSheet = j + 2;
-            
-            // Atualiza o Status para AGENDADOS
-            sheetDestino.getRange(linhaRealSheet, 9).setValue("AGENDADOS");
-            
-            // Preenche as datas se estiverem ausentes na planilha de destino
-            if (dtIniDest === "") {
-              sheetDestino.getRange(linhaRealSheet, 10).setValue(itemRH.dataInicio);
-              sheetDestino.getRange(linhaRealSheet, 11).setValue(itemRH.dataFim);
-            }
-            
-            // Ajusta rótulo de situação
-            var situacaoAtual = sheetDestino.getRange(linhaRealSheet, 5).getValue().toString();
-            if (situacaoAtual.includes("Sugestão do Dev")) {
-              sheetDestino.getRange(linhaRealSheet, 5).setValue("-");
-            }
-            
-            // Limpa o fundo amarelo/destaque
-            sheetDestino.getRange(linhaRealSheet, 1, 1, 17).setBackground(null);
-            
-            // Remove do array para não reusar o mesmo item do RH em outra linha
-            agendadosRH.splice(k, 1);
-            atualizadosCount++;
-            break;
-          }
+      if (achou >= 0) {
+        var linha = achou + 2, rowD = dest[achou];
+        var fimAtual = parseData_(rowD[10]);
+        var mudou = false;
+        if (normalizar_(rowD[8]) !== "AGENDADOS") {
+          sheetDestino.getRange(linha, 9).setValue("AGENDADOS");
+          if (/SUGEST/i.test(String(rowD[4]))) sheetDestino.getRange(linha, 5).setValue("Marcadas");
+          sheetDestino.getRange(linha, 1, 1, 17).setBackground(null);
+          cont.confirmadas++; mudou = true;
         }
+        if (!fimAtual || fimAtual.getTime() !== dFim.getTime()) {
+          if (String(rowD[14]).indexOf("Espelhado") !== -1) removerEventoAgenda_(nome, dIni, fimAtual || dFim);
+          sheetDestino.getRange(linha, 11).setValue(dFim);
+          sheetDestino.getRange(linha, 12).setValue(diasEntre_(dIni, dFim));
+          sheetDestino.getRange(linha, 13).setValue(new Date(dFim.getFullYear(), dFim.getMonth(), dFim.getDate() + 1));
+          sheetDestino.getRange(linha, 14).setValue("");
+          sheetDestino.getRange(linha, 15).setValue("Datas atualizadas pelo RH");
+          cont.ajustadas++; mudou = true;
+        }
+        if (!mudou) cont.iguais++;
+        continue;
       }
+
+      // 2. Sugestão do mesmo colaborador que se sobrepõe ao período do RH
+      var sug = -1;
+      for (var k = 0; k < dest.length; k++) {
+        var rk = dest[k];
+        if (String(rk[1]).trim().toUpperCase() !== nome) continue;
+        if (normalizar_(rk[8]).indexOf("SUGEST") !== 0 && normalizar_(rk[4]).indexOf("SUGEST") === -1) continue;
+        var ki = parseData_(rk[9]), kf = parseData_(rk[10]);
+        if (ki && kf && sobreposicao_(ki, kf, dIni, dFim)) { sug = k; break; }
+      }
+      if (sug >= 0) {
+        var ls = sug + 2, rs = dest[sug];
+        if (String(rs[14]).indexOf("Espelhado") !== -1) removerEventoAgenda_(nome, parseData_(rs[9]), parseData_(rs[10]));
+        sheetDestino.getRange(ls, 5).setValue("Marcadas");
+        sheetDestino.getRange(ls, 9).setValue("AGENDADOS");
+        sheetDestino.getRange(ls, 10, 1, 5).setValues([[dIni, dFim, diasEntre_(dIni, dFim),
+          new Date(dFim.getFullYear(), dFim.getMonth(), dFim.getDate() + 1), ""]]);
+        sheetDestino.getRange(ls, 15).setValue("Datas atualizadas pelo RH");
+        sheetDestino.getRange(ls, 16).setValue(agora);
+        sheetDestino.getRange(ls, 1, 1, 17).setBackground(null);
+        cont.trocadas++;
+        continue;
+      }
+
+      // 3. Férias nova vinda do RH
+      sheetDestino.appendRow([
+        r[C.periodo] || "", nome, r[C.tempo] || "-", r[C.funcao] || "-", r[C.situacao] || "Marcadas",
+        parseData_(r[C.iniAq]) || "", parseData_(r[C.fimAq]) || "", parseData_(r[C.limite]) || "",
+        "AGENDADOS", dIni, dFim, diasEntre_(dIni, dFim),
+        new Date(dFim.getFullYear(), dFim.getMonth(), dFim.getDate() + 1), "",
+        "Importado do RH", agora, nomeOrigem
+      ]);
+      sheetDestino.getRange(sheetDestino.getLastRow(), 1, 1, 17).setBackground("#e8f0fe");
+      cont.novas++;
     }
-    
-    return "Processo Concluído!\n- Sugestões atualizadas para AGENDADOS: " + atualizadosCount;
-    
+
+    return "Importação concluída: " + cont.novas + " férias novas incluídas, " +
+      cont.trocadas + " sugestões substituídas pelas datas do RH, " +
+      cont.confirmadas + " confirmadas como AGENDADOS, " +
+      cont.ajustadas + " com datas corrigidas, " + cont.iguais + " já estavam em dia.";
   } catch (e) {
     throw new Error("Erro durante a importação/atualização: " + e.message);
+  }
+}
+
+// Remove da agenda o evento "Ausência: NOME [Férias...]" que cobre o período antigo
+function removerEventoAgenda_(nome, ini, fim) {
+  try {
+    if (!ini) return;
+    var agenda = CalendarApp.getCalendarById(ID_AGENDA_ALVO.trim());
+    if (!agenda) return;
+    var ate = new Date((fim || ini).getFullYear(), (fim || ini).getMonth(), (fim || ini).getDate() + 2);
+    agenda.getEvents(ini, ate).forEach(function(ev) {
+      var t = ev.getTitle().toUpperCase();
+      if (t.indexOf("AUSÊNCIA: " + nome) === 0 && t.indexOf("FÉRIAS") !== -1) ev.deleteEvent();
+    });
+  } catch (e) {
+    Logger.log("Não foi possível remover o evento antigo de " + nome + ": " + e.message);
   }
 }
 
