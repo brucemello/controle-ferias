@@ -193,8 +193,9 @@ function processarEAtualizarConflitos() {
   }
 }
 
+// Gatilho instalável "Ao abrir": abre o dashboard de férias
 function gatilhoAberturaAutomatica() {
-  try { abrirPainel(); } catch (e) {}
+  try { abrirDashboard(); } catch (e) {}
 }
 
 function abrirPainel() {
