@@ -154,6 +154,23 @@ function lerContatos_() {
   return m;
 }
 
+// Lê os nomes das pessoas na exportação do RH (Looker) mais recente, sem gravar nada.
+// A tela de Configuração junta com a lista atual para o gestor revisar e salvar.
+function lerPessoasDoRh() {
+  const origem = idRhParaImportar_();
+  const ssRH = SpreadsheetApp.openById(origem.id);
+  const aba = ssRH.getSheetByName("Sheet1") || ssRH.getSheets()[0];
+  if (aba.getLastRow() < 2) throw new Error("A exportação do RH está vazia.");
+  const cab = aba.getRange(1, 1, 1, aba.getLastColumn()).getValues()[0].map(c => normalizar_(c));
+  let iNome = cab.indexOf("NOME"); if (iNome < 0) iNome = 1;
+  const vistos = {}, nomes = [];
+  aba.getRange(2, 1, aba.getLastRow() - 1, aba.getLastColumn()).getValues().forEach(r => {
+    const n = String(r[iNome] || "").trim().toUpperCase();
+    if (n && !vistos[n]) { vistos[n] = true; nomes.push(n); }
+  });
+  return { nomes: nomes.sort(), origem: origem.nome + (origem.criada ? " (" + origem.criada + ")" : "") };
+}
+
 function gravarMembros_(ss, membros) {
   const lista = membros
     .map(m => ({ nome: String(m.nome || "").trim(), email: String(m.email || "").trim() }))

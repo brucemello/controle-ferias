@@ -451,6 +451,7 @@
             <div style="display:flex;gap:8px;margin-top:8px">
               <button class="btn btn-sm" style="color:var(--teal)" onclick="addMembro()"><i class="fa-solid fa-plus"></i> Adicionar pessoa</button>
               <button class="btn btn-sm" style="color:var(--muted)" onclick="colarMembros()"><i class="fa-regular fa-paste"></i> Colar lista</button>
+              <button class="btn btn-sm" style="color:#c25700" id="bPuxarRh" onclick="puxarPessoasRh()"><i class="fa-solid fa-file-import"></i> Puxar nomes do RH</button>
             </div>
             <div class="field hide" id="boxColar" style="margin-top:10px"><label>Uma pessoa por linha: Nome; e-mail</label><textarea id="cColar" rows="5" placeholder="MARIA DA SILVA; maria.silva@totvs.com.br"></textarea>
               <button class="btn btn-sm" style="color:var(--teal);margin-top:6px" onclick="aplicarColagem()">Adicionar à lista</button></div>
@@ -954,7 +955,7 @@ function conteudoPasso(p){
       '<div class="acoes">'+btn('<i class="fa-solid fa-gear"></i> Ir para Configuração',"irPara(\'config\')","btn-main")+'</div>'},
     pessoas:{t:"Cadastrar as pessoas do time", b:
       '<div class="dica"><i class="fa-solid fa-triangle-exclamation" style="color:#b06000"></i> Use o <b>nome completo exatamente como aparece no relatório do RH</b> (Looker). É por ele que a importação reconhece as férias de cada pessoa.</div>'+
-      '<ol><li>Em <b>Configuração → Pessoas do time</b>, adicione cada pessoa com o e-mail. O e-mail é usado para avisar sobre conflitos e decisões.</li><li>Para ir mais rápido, use <b>Colar lista</b> com uma pessoa por linha: <i>NOME; e-mail</i>.</li></ol>'+
+      '<ol><li>Exporte a tabela do RH no Looker (etapa 6) e, em <b>Configuração → Pessoas do time</b>, clique em <b>Puxar nomes do RH</b>. Os nomes vêm exatamente como o RH usa.</li><li>Complete o <b>e-mail</b> de cada pessoa, que é usado para avisar sobre conflitos e decisões, e remova quem não for do time.</li><li>Se preferir, use <b>Colar lista</b> com uma pessoa por linha: <i>NOME; e-mail</i>. Depois clique em <b>Salvar configuração</b>.</li></ol>'+
       '<div class="acoes">'+btn('<i class="fa-solid fa-address-book"></i> Ir para Configuração',"irPara(\'config\')","btn-main")+'</div>'},
     agenda:{t:"Escolher a agenda do time", b:
       '<ol><li>Em <b>Configuração → Agenda do time</b>, escolha uma agenda sua ou <b>Criar nova agenda para o time</b>.</li>'+
@@ -1040,6 +1041,20 @@ function linhaMembro(nome,email){
 }
 function addMembro(n,e){ document.getElementById("cMembros").insertAdjacentHTML("beforeend",linhaMembro(n,e)); }
 function colarMembros(){ document.getElementById("boxColar").classList.toggle("hide"); }
+function puxarPessoasRh(){
+  var b=document.getElementById("bPuxarRh"), html=b.innerHTML;
+  b.disabled=true; b.innerHTML='<i class="fa-solid fa-spinner fa-spin"></i> Lendo exportação…';
+  google.script.run.withSuccessHandler(function(r){
+      b.disabled=false; b.innerHTML=html;
+      var atuais={}; document.querySelectorAll("#cMembros .mNome").forEach(function(i){ if(i.value.trim()) atuais[i.value.trim().toUpperCase()]=1; });
+      // remove linhas vazias antes de acrescentar
+      document.querySelectorAll("#cMembros tr").forEach(function(tr){ if(!tr.querySelector(".mNome").value.trim() && !tr.querySelector(".mEmail").value.trim()) tr.remove(); });
+      var novos=r.nomes.filter(function(n){ return !atuais[n]; });
+      novos.forEach(function(n){ addMembro(n,""); });
+      mostrarMsg("cMsg", novos.length?"ok":"warn", (novos.length? "✔️ "+novos.length+" pessoa(s) adicionada(s) de "+r.origem+". Preencha os e-mails, remova quem não é do time e clique em Salvar configuração." : "Todas as pessoas da exportação ("+r.origem+") já estão na lista."));
+    }).withFailureHandler(function(e){ b.disabled=false; b.innerHTML=html; mostrarMsg("cMsg","err","❌ "+e.message); })
+    .lerPessoasDoRh();
+}
 function aplicarColagem(){
   document.getElementById("cColar").value.split(/\n/).forEach(function(l){
     var p=l.split(/[;\t]/); if(p[0]&&p[0].trim()) addMembro(p[0].trim().toUpperCase(),(p[1]||"").trim());
