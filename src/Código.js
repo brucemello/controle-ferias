@@ -718,7 +718,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
     var dadosRH = sheetRH.getRange(2, 1, sheetRH.getLastRow() - 1, sheetRH.getLastColumn()).getValues();
     var nomeOrigem = ssOrigem.getName();
     var agora = new Date();
-    var cont = { confirmadas: 0, ajustadas: 0, trocadas: 0, novas: 0, iguais: 0 };
+    var cont = { confirmadas: 0, ajustadas: 0, trocadas: 0, novas: 0, iguais: 0, historico: 0 };
     var alterados = []; // férias que entraram ou mudaram nesta importação (para o alerta de conflito)
     var vistosRH = {};
 
@@ -727,7 +727,32 @@ function importarDadosPorIdPlanilha(idOrigem) {
       var nome = String(r[C.nome] || "").trim().toUpperCase();
       var agend = normalizar_(r[C.agendamento]);
       var dIni = parseData_(r[C.ini]), dFim = parseData_(r[C.fim]);
-      if (!nome || agend !== "AGENDADOS" || !dIni || !dFim) continue;
+      if (!nome || !dIni || !dFim) continue;
+
+      // Férias já gozadas (Finalizadas): entram só como histórico, se ainda não existirem.
+      // Não contam como conflito nem vão para a agenda.
+      if (agend !== "AGENDADOS") {
+        if (normalizar_(r[C.situacao]).indexOf("FINALIZAD") !== 0) continue;
+        var chaveH = nome + "|" + dIni.getTime();
+        if (vistosRH[chaveH]) continue;
+        vistosRH[chaveH] = true;
+        var ultH = sheetDestino.getLastRow();
+        var existe = ultH > 1 && sheetDestino.getRange(2, 1, ultH - 1, 10).getValues().some(function(x) {
+          var di = parseData_(x[9]);
+          return String(x[1]).trim().toUpperCase() === nome && di && di.getTime() === dIni.getTime();
+        });
+        if (!existe) {
+          sheetDestino.appendRow([
+            r[C.periodo] || "", nome, r[C.tempo] || "-", r[C.funcao] || "-", "Finalizadas",
+            parseData_(r[C.iniAq]) || "", parseData_(r[C.fimAq]) || "", parseData_(r[C.limite]) || "",
+            r[C.agendamento] || "Não Agendados", dIni, dFim, diasEntre_(dIni, dFim),
+            new Date(dFim.getFullYear(), dFim.getMonth(), dFim.getDate() + 1), "",
+            "Histórico do RH", agora, nomeOrigem
+          ]);
+          cont.historico++;
+        }
+        continue;
+      }
       var chaveRH = nome + "|" + dIni.getTime();
       if (vistosRH[chaveRH]) continue;
       vistosRH[chaveRH] = true;
@@ -803,6 +828,17 @@ function importarDadosPorIdPlanilha(idOrigem) {
       alterados.push({ nome: nome, inicio: dIni, fim: dFim, tipo: "nova, vinda do RH" });
     }
 
+    var avisoFiltro = "";
+    try {
+      var filtro = sheetDestino.getFilter();
+      if (filtro) {
+        var cols = filtro.getRange().getNumColumns(), ini = filtro.getRange().getColumn();
+        for (var cf = ini; cf < ini + cols; cf++) {
+          if (filtro.getColumnFilterCriteria(cf)) { avisoFiltro = " 🔎 Atenção: a aba Controle Consolidado tem filtro ativo e algumas linhas podem estar ocultas."; break; }
+        }
+      }
+    } catch (e) {}
+
     var qtdAlertas = 0;
     try { qtdAlertas = alertarConflitosImportacao_(sheetDestino, alterados); } catch (e) { Logger.log("Alerta de conflitos da importação: " + e.message); }
 
@@ -810,7 +846,8 @@ function importarDadosPorIdPlanilha(idOrigem) {
       "Importação concluída: " + cont.novas + " férias novas incluídas, " +
       cont.trocadas + " sugestões substituídas pelas datas do RH, " +
       cont.confirmadas + " confirmadas como AGENDADOS, " +
-      cont.ajustadas + " com datas corrigidas, " + cont.iguais + " já estavam em dia.";
+      cont.ajustadas + " com datas corrigidas, " + cont.iguais + " já estavam em dia" +
+      (cont.historico ? ", " + cont.historico + " férias finalizadas guardadas como histórico" : "") + "." + avisoFiltro;
   } catch (e) {
     throw new Error("Erro durante a importação/atualização: " + e.message);
   }

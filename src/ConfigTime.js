@@ -197,6 +197,15 @@ function limparDadosTime_(ss) {
   Object.keys(abas).forEach(nome => {
     const aba = ss.getSheetByName(nome);
     if (!aba) return;
+    // Tira critérios de filtro herdados e reexibe linhas ocultas
+    try {
+      const f = aba.getFilter();
+      if (f) {
+        const c0 = f.getRange().getColumn(), n = f.getRange().getNumColumns();
+        for (let c = c0; c < c0 + n; c++) { if (f.getColumnFilterCriteria(c)) f.removeColumnFilterCriteria(c); }
+      }
+      aba.showRows(1, aba.getMaxRows());
+    } catch (e) {}
     const ini = abas[nome], ult = aba.getLastRow();
     if (ult >= ini) {
       const rng = aba.getRange(ini, 1, ult - ini + 1, Math.max(1, aba.getLastColumn()));
