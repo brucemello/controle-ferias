@@ -398,6 +398,11 @@ function consultarSaldosColaborador(nomePesquisa) {
 
     resultado.giftSaldo = Math.max(0, resultado.giftTotal - resultado.giftUsado);
     resultado.resetSaldo = Math.max(0, resultado.resetTotal - resultado.resetUsado);
+    try {
+      var bh = saldoBancoHorasDe_(nomePesquisa);
+      resultado.bhHoras = bh.disponivel || 0; resultado.bhFmt = bh.disponivelFmt || "0h00"; resultado.bhDias = bh.dias || 0;
+      resultado.bhJornada = jornadaHoras_();
+    } catch (e) { resultado.bhHoras = 0; resultado.bhFmt = "0h00"; resultado.bhDias = 0; }
     return resultado;
   } catch (err) {
     throw new Error("Erro no cálculo analítico dos saldos: " + err.message);
@@ -589,6 +594,14 @@ function salvarSugestaoDev(dados) {
       if (opcao.includes("GIFT") && saldos.giftSaldo <= 0) {
         throw new Error("Bloqueio de Elegibilidade: Saldo de GiftDay insuficiente.");
       }
+      if (opcao.includes("BANCO")) {
+        var diasBH = (parseInt(dados.quantidadeDias, 10) || 0) === 0
+          ? Math.max(1, parseInt(dados.quantidadeDiasBeneficio, 10) || 1)
+          : (parseInt(dados.diasEmendaBH, 10) || 0);
+        if (diasBH > saldos.bhDias) {
+          throw new Error("Bloqueio de Elegibilidade: banco de horas disponível " + (saldos.bhFmt || "0h00") + " (" + saldos.bhDias + " dia(s)); pedido de " + diasBH + " dia(s).");
+        }
+      }
       if (opcao.includes("RESET") && saldos.resetSaldo <= 0) {
         throw new Error("Bloqueio de Elegibilidade: o ResetDay deste ano já foi usado" + (saldos.resetUsadoEm ? " (" + Utilities.formatDate(parseData_(saldos.resetUsadoEm), Session.getScriptTimeZone(), "dd/MM/yyyy") + ")" : "") + ".");
       }
@@ -618,7 +631,10 @@ function salvarSugestaoDev(dados) {
       if (opcao.includes("MVT")) atualizarAbaMVTComoUtilizado(dados.nome);
       
       var tituloFolga = "Ausência: " + nomeExibicaoCalendario + " [" + opcao + "]";
-      var dataFimAvulsa = dados.dataRetornoAfastamento ? dados.dataRetornoAfastamento : dados.dataInicio;
+      // Último dia de folga = início + quantidade - 1 (o dia de retorno não entra na agenda)
+      var qtdFolga = Math.max(1, parseInt(dados.quantidadeDiasBeneficio, 10) || 1);
+      var iniFolga = parseData_(dados.dataInicio);
+      var dataFimAvulsa = iniFolga ? iso_(new Date(iniFolga.getFullYear(), iniFolga.getMonth(), iniFolga.getDate() + qtdFolga - 1)) : dados.dataInicio;
       injetarEventoNoCalendarioGoogle(tituloFolga, dados.dataInicio, dataFimAvulsa);
       
       return "Sucesso! Lançamento salvo e sincronizado na agenda.";
@@ -676,9 +692,11 @@ function salvarSugestaoDev(dados) {
     // CHECAGEM DE CONFLITO: se houver sobreposição, vai para aprovação do gestor
     // e só é espelhado no Calendar depois de aprovado
     var resultadoConflito = processarLancamentoFerias(linhaNova);
+    var diasEmenda = opcao.indexOf("BANCO") !== -1 ? (parseInt(dados.diasEmendaBH, 10) || 0) : 0;
     if (resultadoConflito.status === "pendente") {
-      return resultadoConflito.mensagem;
+      return resultadoConflito.mensagem + (diasEmenda ? " A emenda de " + diasEmenda + " dia(s) com banco de horas não foi lançada: lance como folga avulsa depois da aprovação." : "");
     }
+    if (diasEmenda > 0) registrarEmendaBancoHoras_(dados.nome, dados.dataFim, diasEmenda);
     
     var tituloFeriasNovas = "Ausência: " + nomeExibicaoCalendario + " [Férias" + (opcao ? " + " + opcao : "") + "]";
     var ultimaDataAusente = dados.dataRetornoAfastamento ? dados.dataRetornoAfastamento : dados.dataFim;
@@ -687,6 +705,18 @@ function salvarSugestaoDev(dados) {
     return "Sucesso! Férias gravadas como Sugestão e espelhadas na agenda.";
     
   } catch (err) { throw new Error(err.message); }
+}
+
+// Emenda de férias com banco de horas: folga de N dias a partir do dia seguinte ao fim das férias
+function registrarEmendaBancoHoras_(nome, fimFeriasIso, dias) {
+  var fim = parseData_(fimFeriasIso);
+  if (!fim || !dias) return;
+  var ini = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate() + 1);
+  var ult = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + dias - 1);
+  var ret = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + dias);
+  var aba = obterPlanilhaAtiva().getSheetByName("Folgas e Emendas - 2026") || inicializarTodasAbas();
+  aba.appendRow([String(nome).toUpperCase().trim(), "BANCO DE HORAS (emenda)", iso_(ini), dias, iso_(ret), new Date(), "Emenda de férias | Espelhado no Calendar"]);
+  injetarEventoNoCalendarioGoogle("Ausência: " + String(nome).toUpperCase().trim() + " [BANCO DE HORAS - emenda]", iso_(ini), iso_(ult));
 }
 
 function inicializarTodasAbas() {

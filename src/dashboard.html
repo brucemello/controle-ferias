@@ -320,6 +320,7 @@
       <li data-view="conflitos"><i class="fa-solid fa-triangle-exclamation"></i>Conflitos <span class="count hide" id="navConf">0</span></li>
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
       <li data-view="benef"><i class="fa-solid fa-gift"></i>Benefícios</li>
+      <li data-view="bh"><i class="fa-regular fa-clock"></i>Banco de horas</li>
       <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
       <li data-view="config"><i class="fa-solid fa-gear"></i>Configuração</li>
       <li data-view="setup"><i class="fa-solid fa-list-check"></i>Primeiros passos <span class="count hide" id="navSetup">0</span></li>
@@ -414,7 +415,7 @@
               <label>Colaborador</label>
               <select id="fNome" onchange="aoTrocarColab()"><option value="">Selecione…</option></select>
               <div class="saldos" id="fSaldos">
-                <div>GiftDay<b id="sGift">–</b></div><div>ResetDay<b id="sReset">–</b></div><div>MVT<b id="sMvt">–</b></div>
+                <div>GiftDay<b id="sGift">–</b></div><div>ResetDay<b id="sReset">–</b></div><div>MVT<b id="sMvt">–</b></div><div>Banco de horas<b id="sBH">–</b></div>
               </div>
             </div>
             <div class="field">
@@ -429,9 +430,11 @@
             <div class="field">
               <label id="lblBen">Benefício acoplado (opcional)</label>
               <select id="fBen" onchange="atualizarPrevia()">
-                <option value="">Nenhum</option><option value="GiftDay">GiftDay</option><option value="MVT">MVT</option><option value="ResetDay">ResetDay</option>
+                <option value="">Nenhum</option><option value="GiftDay">GiftDay</option><option value="MVT">MVT</option><option value="ResetDay">ResetDay</option><option value="Banco de Horas">Banco de Horas</option>
               </select>
             </div>
+            <div class="field hide" id="boxDiasBH"><label id="lblDiasBH">Dias com banco de horas</label><input type="number" id="fDiasBH" min="1" value="1" oninput="atualizarPrevia()">
+              <div id="infoBH" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
           </div>
 
           <div class="card">
@@ -504,6 +507,33 @@
           <div style="display:flex;gap:8px"><input id="mConf" placeholder="Digite APAGAR para confirmar" style="flex:1;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit">
           <button class="btn" style="background:var(--purple);color:#fff" onclick="virarModelo()">Transformar em modelo</button></div>
           <div class="msg" id="mMsg"></div>
+        </div>
+      </section>
+
+      <!-- BANCO DE HORAS -->
+      <section class="view" id="v-bh">
+        <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-bottom:14px">
+          <div class="card sinc-card">
+            <h3><span class="ic" style="background:var(--blue-l);color:#1d4ed8"><i class="fa-regular fa-clock"></i></span>Saldo do RH</h3>
+            <div id="bhStatus" style="font-size:12.5px;line-height:1.7;color:var(--muted)">Carregando…</div>
+            <div class="acoes" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-orange" id="bhImp" onclick="bhAcao('importar')"><i class="fa-solid fa-file-import"></i> Importar agora</button>
+              <button class="btn btn-sec" id="bhEnv" onclick="bhAcao('enviar')"><i class="fa-regular fa-envelope"></i> Enviar saldo para o time</button>
+            </div>
+            <div class="msg" id="bhMsg"></div>
+          </div>
+          <div class="card sinc-card">
+            <h3><span class="ic" style="background:var(--teal-l);color:#0f766e"><i class="fa-solid fa-calculator"></i></span>Como funciona</h3>
+            <p style="margin:0 0 8px">Saldo disponível = horas que <b>ainda não venceram</b> no último relatório do RH − folgas com banco de horas lançadas depois da importação. Cada <b><span id="bhJornadaTxt">8</span>h = 1 dia</b> de folga.</p>
+            <div style="display:flex;gap:8px;align-items:center;font-size:12px">Jornada: <input id="bhJornada" type="number" step="0.5" min="1" max="12" style="width:70px;padding:6px 8px;border:1px solid var(--line);border-radius:8px"> h/dia
+              <button class="btn btn-sm" style="color:var(--teal)" onclick="bhAcao('jornada')">Salvar</button></div>
+          </div>
+        </div>
+        <div class="card">
+          <table class="t">
+            <thead><tr><th>Colaborador</th><th>Disponível</th><th>Em dias</th><th>Vence em breve</th><th>Por prazo de compensação</th><th>Usado após importação</th></tr></thead>
+            <tbody id="tbBH"><tr><td colspan="6">Carregando…</td></tr></tbody>
+          </table>
         </div>
       </section>
 
@@ -641,11 +671,11 @@ function carregar(){
 function renderTudo(){
   if(!D) return;
   document.getElementById("subtitulo").textContent = "Hoje é "+SEMLONGO[HOJE.getDay()]+", "+HOJE.getDate()+" de "+MESES[HOJE.getMonth()]+" de "+HOJE.getFullYear();
-  renderGeral(); renderEquipe(); renderCalendario(); renderTimeline(); renderConflitos(); atualizarPrevia(); renderBenef();
+  renderGeral(); renderEquipe(); renderCalendario(); renderTimeline(); renderConflitos(); atualizarPrevia(); renderBenef(); renderBH();
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos",benef:"Benefícios"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos",benef:"Benefícios",bh:"Banco de horas"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
@@ -654,6 +684,7 @@ function irPara(v){
   if(v==="config") carregarConfig();
   if(v==="setup") carregarSetup();
   if(v==="benef") carregarBenef();
+  if(v==="bh") carregarBH();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -885,7 +916,7 @@ function aoTrocarColab(){
   ["sGift","sReset","sMvt"].forEach(function(id){ setTxt(id,"–"); });
   if(n){
     google.script.run.withSuccessHandler(function(s){
-      saldosAtuais=s; setTxt("sGift",s.giftSaldo+"d"); setTxt("sReset",s.resetSaldo+"d"); setTxt("sMvt",s.mvtSaldo);
+      saldosAtuais=s; setTxt("sGift",s.giftSaldo+"d"); setTxt("sReset",s.resetSaldo+"d"); setTxt("sMvt",s.mvtSaldo); setTxt("sBH",(s.bhFmt||"0h00")+" · "+(s.bhDias||0)+"d");
       atualizarPrevia();
     }).consultarSaldosColaborador(n);
   }
@@ -896,10 +927,13 @@ function lerForm(){
   var nome=document.getElementById("fNome").value, iniS=document.getElementById("fIni").value;
   var dias= tipoLanc==="folga"? 0 : parseInt(document.getElementById("fDias").value,10);
   var ben=document.getElementById("fBen").value;
-  if(!nome||!iniS||(tipoLanc==="ferias"&&(!dias||dias<1))) return {nome:nome,ok:false};
-  var ini=P(iniS), fim= tipoLanc==="folga"? ini : addD(ini,dias-1);
-  var ret= addD(ini, tipoLanc==="folga"? 1 : dias);   // mesma regra do painel antigo
-  return {ok:true,nome:nome,ini:ini,fim:fim,ret:ret,dias:dias,ben:ben};
+  var bh=/banco/i.test(ben), nBH=bh? Math.max(1,parseInt(document.getElementById("fDiasBH").value,10)||1) : 0;
+  document.getElementById("boxDiasBH").classList.toggle("hide",!bh);
+  setTxt("lblDiasBH", tipoLanc==="folga"? "Dias de folga com banco de horas" : "Dias de emenda depois das férias (banco de horas)");
+  if(!nome||!iniS||(tipoLanc==="ferias"&&(!dias||dias<1))) return {nome:nome,ok:false,nBH:nBH};
+  var ini=P(iniS), fim= tipoLanc==="folga"? addD(ini,(bh?nBH:1)-1) : addD(ini,dias-1);
+  var ret= tipoLanc==="folga"? addD(ini, bh?nBH:1) : addD(ini, dias+(bh?nBH:0));   // retorno considera a emenda
+  return {ok:true,nome:nome,ini:ini,fim:fim,ret:ret,dias:dias,ben:ben,nBH:nBH};
 }
 
 function conflitosDe(nome,ini,fim){
@@ -935,7 +969,11 @@ function atualizarPrevia(){
   setTxt("rIni",F(f.ini)); setTxt("rIniW",SEMLONGO[f.ini.getDay()]);
   setTxt("rFim",F(f.fim)); setTxt("rFimW",SEMLONGO[f.fim.getDay()]);
   setTxt("rRet",F(f.ret)); setTxt("rRetW",SEMLONGO[f.ret.getDay()]);
-  setTxt("rDias", tipoLanc==="folga"? "1 (folga)" : f.dias);
+  setTxt("rDias", tipoLanc==="folga"? (f.nBH||1)+" (folga)" : f.dias+(f.nBH? " + "+f.nBH+" emenda":""));
+  if(f.nBH){
+    var j=(saldosAtuais&&saldosAtuais.bhJornada)||8;
+    setTxt("infoBH","Usa "+(f.nBH*j)+"h do banco · disponível: "+((saldosAtuais&&saldosAtuais.bhFmt)||"–")+" ("+((saldosAtuais&&saldosAtuais.bhDias)||0)+" dia(s) de "+j+"h)"+(tipoLanc==="ferias"?" · emenda de "+FC(addD(f.fim,1))+" a "+FC(addD(f.fim,f.nBH)):""));
+  }
 
   var avisos=[];
   if(f.ini<HOJE) avisos.push("A data de saída já passou.");
@@ -945,6 +983,7 @@ function atualizarPrevia(){
   if(saldosAtuais && f.ben){
     if(/gift/i.test(f.ben) && saldosAtuais.giftSaldo<=0) avisos.push("Sem saldo de GiftDay: o lançamento será bloqueado.");
     if(/mvt/i.test(f.ben) && saldosAtuais.mvtSaldo<=0) avisos.push("Sem saldo de MVT: o lançamento será bloqueado.");
+    if(/banco/i.test(f.ben) && (f.nBH||1)>(saldosAtuais.bhDias||0)) avisos.push("Banco de horas insuficiente: "+(saldosAtuais.bhFmt||"0h00")+" disponível ("+(saldosAtuais.bhDias||0)+" dia(s)). O lançamento será bloqueado.");
     if(/reset/i.test(f.ben) && saldosAtuais.resetSaldo<=0) avisos.push("O ResetDay deste ano já foi usado"+(saldosAtuais.resetUsadoEm?" em "+F(saldosAtuais.resetUsadoEm):"")+": o lançamento será bloqueado.");
   }
   var h=avisos.length? '<div class="status-box warn"><i class="fa-solid fa-circle-exclamation"></i> '+avisos.map(esc).join("<br>")+'</div>' : "";
@@ -980,7 +1019,8 @@ function salvar(){
     dataFim: ISO(f.fim),
     quantidadeDias: f.dias,
     opcaoAfastamento: f.ben,
-    quantidadeDiasBeneficio: tipoLanc==="folga"? 1 : 0,
+    quantidadeDiasBeneficio: tipoLanc==="folga"? (f.nBH||1) : 0,
+    diasEmendaBH: tipoLanc==="ferias"? (f.nBH||0) : 0,
     dataRetornoAfastamento: ISO(f.ret)
   };
   google.script.run
@@ -996,6 +1036,36 @@ function salvar(){
       btn.textContent=txt; btn.disabled=false;
     })
     .salvarSugestaoDev(payload);
+}
+
+// ---------- banco de horas ----------
+var BH=null;
+function carregarBH(){
+  google.script.run.withSuccessHandler(function(b){ BH=b; renderBH(); })
+    .withFailureHandler(function(e){ mostrarMsg("bhMsg","err","❌ "+e.message); }).obterBancoHoras();
+}
+function renderBH(){
+  if(!BH) return;
+  setTxt("bhJornadaTxt",BH.jornada); document.getElementById("bhJornada").value=BH.jornada;
+  var st='<div><i class="fa-solid fa-database"></i> Última importação: <b style="color:var(--ink)">'+(BH.ultimaImportacao||"nunca")+'</b></div>';
+  st+= BH.exportacao? '<div><i class="fa-solid fa-file-excel" style="color:#188038"></i> Exportação mais recente: <b style="color:var(--ink)">'+esc(BH.exportacao.criada)+'</b>'+(BH.exportacaoNova?' <span class="pill p-coral">nova, ainda não importada</span>':' <span class="pill p-teal">já importada</span>')+'</div>'
+     : '<div><i class="fa-solid fa-circle-exclamation" style="color:#b06000"></i> Nenhuma exportação de banco de horas sua no Drive.</div>';
+  if(BH.emailRH) st+='<div><i class="fa-regular fa-envelope"></i> Último e-mail do RH: <b style="color:var(--ink)">'+esc(BH.emailRH.assunto)+'</b> em '+esc(BH.emailRH.data)+'</div>';
+  st+='<div style="margin-top:6px">Para atualizar: no relatório do RH, na tabela <b>Banco de horas por TOTVER</b>, clique em ⋮ → <b>Exportar → Google Planilhas</b>. Com a sincronização automática ligada, a importação acontece sozinha em até 1h, e você recebe um lembrete quando chegar o e-mail do RH.</div>';
+  document.getElementById("bhStatus").innerHTML=st;
+  document.getElementById("bhEnv").disabled=!BH.ehGestor;
+  var lista=BH.pessoas.filter(function(p){return passa(p.nome);}).sort(function(a,b){return b.disponivel-a.disponivel;});
+  document.getElementById("tbBH").innerHTML = lista.length? lista.map(function(p){
+    var fx=p.faixas.map(function(f){ return '<span class="bf-chip '+(f.vencida?"usado":(f.horas>0?"livre":""))+'" style="cursor:default" title="'+(f.vencida?"vencido":"compensar até "+F(f.ate))+'"><b>'+FC(f.ate)+'</b>'+esc(f.fmt)+'</span>'; }).join("") || '<span style="color:var(--muted)">sem dados</span>';
+    var venc=p.vencendo? '<span class="pill '+(p.vencendo.emDias<=10?"p-red":"p-yellow")+'">'+esc(p.vencendo.fmt)+' até '+FC(p.vencendo.ate)+'</span>' : '<span style="color:var(--muted)">–</span>';
+    return '<tr><td><div class="nmcell">'+avatar(p.nome)+esc(titulo(p.nome))+'</div></td><td class="nw"><b>'+esc(p.fmt)+'</b></td><td class="nw">'+(p.dias? '<span class="pill p-teal">'+plural(p.dias,"dia","dias")+'</span>':'<span style="color:var(--muted)">0</span>')+'</td><td class="nw">'+venc+'</td><td>'+fx+'</td><td class="nw">'+(p.usado? Math.round(p.usado*10)/10+"h":"–")+'</td></tr>';
+  }).join("") : '<tr><td colspan="6">'+vazio("fa-users","Cadastre as pessoas do time em Configuração.")+'</td></tr>';
+}
+function bhAcao(a){
+  mostrarMsg("bhMsg","warn","⏳ Processando…");
+  var r=google.script.run.withSuccessHandler(function(res){ mostrarMsg("bhMsg","ok","✔️ "+res); carregarBH(); })
+    .withFailureHandler(function(e){ mostrarMsg("bhMsg","err","❌ "+e.message); });
+  if(a==="importar") r.importarBancoHoras(""); else if(a==="enviar") r.enviarSaldosBancoHoras(); else r.salvarJornadaBH(document.getElementById("bhJornada").value);
 }
 
 // ---------- benefícios ----------
@@ -1094,6 +1164,10 @@ function conteudoPasso(p){
     aviso:{t:"Aviso diário de férias", op:true, b:
       '<div class="dica">Todo dia às 8h, envia por e-mail (e para o Chat, se houver webhook) quem sai de férias nos próximos 30 dias. Os destinatários ficam em <b>Configuração</b>.</div>'+
       '<div class="acoes">'+(p.ok? btn("Desligar","spAcao(\'avisoOff\')") : btn('<i class="fa-solid fa-bell"></i> Ligar agora',"spAcao(\'avisoOn\')","btn-main"))+btn("Destinatários","irPara(\'config\')")+'</div>'},
+    bancohoras:{t:"Banco de horas", op:true, b:
+      '<div class="dica">Traz o saldo de banco de horas do relatório do RH para o time usar em folgas e emendas de férias.</div>'+
+      '<ol><li>Quando chegar o e-mail <b>Dashboard de Banco de Horas</b> do RH, abra o relatório.</li><li>Na tabela <b>Banco de horas por TOTVER</b>: '+k("⋮")+' → '+k("Exportar")+' → '+k("Google Planilhas")+'.</li><li>Clique em <b>Importar agora</b>. Com a sincronização automática ligada, isso acontece sozinho, e você recebe um lembrete quando o RH mandar um relatório novo.</li></ol>'+
+      '<div class="acoes">'+btn('<i class="fa-regular fa-clock"></i> Ir para Banco de horas',"irPara(\'bh\')","btn-main")+'</div>'},
     beneficios:{t:"Cadastrar admissão e MVT", op:true, b:
       '<div class="dica">A <b>data de admissão</b> define o GiftDay (aniversários de 5, 10, 15 e 20 anos de casa). Os <b>MVTs</b> ganhos também são cadastrados aqui. O ResetDay (1 por ano) é automático.</div>'+
       '<div class="acoes">'+btn('<i class="fa-solid fa-gift"></i> Ir para Benefícios',"irPara(\'benef\')","btn-main")+'</div>'},

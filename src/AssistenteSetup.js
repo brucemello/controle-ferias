@@ -81,6 +81,8 @@ function verificarSetup() {
   add("beneficios", pessoas.length > 0 && semAdm.length === 0,
     !pessoas.length ? "Cadastre as pessoas primeiro." : semAdm.length ? semAdm.length + " pessoa(s) sem data de admissão." : "Todos com data de admissão.",
     { opcional: true });
+  const bhUlt = PropertiesService.getScriptProperties().getProperty("BH_ULTIMA_IMPORTACAO");
+  add("bancohoras", !!bhUlt, bhUlt ? "Última importação: " + Utilities.formatDate(new Date(bhUlt), tz_(), "dd/MM/yyyy") : "Banco de horas ainda não importado.", { opcional: true });
   add("abertura", tem("gatilhoAberturaAutomatica") || tem("abrirDashboard"),
     tem("gatilhoAberturaAutomatica") || tem("abrirDashboard") ? "O dashboard abre sozinho ao abrir a planilha." : "Desligada: abra pelo menu Apoio Gestão.", { opcional: true });
 

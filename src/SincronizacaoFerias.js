@@ -117,6 +117,7 @@ function configurarSincronizacaoAutomatica(ativar) {
 // De hora em hora: se apareceu uma exportação do Looker mais nova que a última
 // importada, roda a sincronização completa na hora (sem esperar as 7h).
 function verificarNovaExportacao() {
+  try { verificarBancoHoras_(); } catch (e) { Logger.log(e); }
   if (modoRh_() !== "auto") return;
   const ex = exportacaoMaisRecente_();
   if (!ex) return;
@@ -144,6 +145,7 @@ function sincronizacaoAutomatica(motivo) {
 
   try { atualizarAbaControleConflitos(false); etapas.push("Conflitos atualizados."); }
   catch (e) { erros.push("Controle de conflitos: " + e.message); }
+  try { verificarBancoHoras_(); } catch (e) { erros.push("Banco de horas: " + e.message); }
 
   registrarUltimaSinc_(motivo, etapas.concat(erros.map(x => "❌ " + x)).join(" · "));
   lock.releaseLock();
@@ -170,6 +172,7 @@ function autorizarPermissoes() {
   ScriptApp.getProjectTriggers();
   if (idAgenda_()) CalendarApp.getCalendarById(idAgenda_());
   MailApp.getRemainingDailyQuota();
+  try { GmailApp.search('subject:"' + BH_CONFIG.assuntoEmailRH + '"', 0, 1); } catch (e) { Logger.log("Gmail: " + e.message); }
   vincularPlanilha_();
   const ex = exportacaoMaisRecente_();
   Logger.log("✅ Permissões concedidas. Exportação mais recente: " + (ex ? ex.nome + " (" + ex.criada + ")" : "nenhuma encontrada"));
