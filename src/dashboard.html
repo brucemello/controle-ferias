@@ -496,6 +496,9 @@
             <div class="field"><label>Aviso diário de férias — destinatários (separados por vírgula)</label><input id="cAviso" placeholder="gestor@totvs.com.br,time@totvs.com.br"></div>
             <div class="field"><label>Webhook do Google Chat (opcional)</label><input id="cWebhook" placeholder="Cole a URL do webhook do espaço do time">
               <div id="cWebhookInfo" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
+            <div class="field"><label>Fotos do time: planilha do Agente A.I.F.R.E.A.D (opcional)</label>
+              <div style="display:flex;gap:6px"><input id="cFotos" placeholder="ID ou link da planilha do Agente" style="flex:1"><button class="btn btn-sm" style="color:var(--teal)" onclick="buscarFotos()"><i class="fa-solid fa-camera"></i> Buscar fotos</button></div>
+              <div id="cFotosInfo" style="font-size:11px;color:var(--muted);margin-top:5px">As fotos vêm da aba TIME_FOTOS do Agente (Pessoas → Time &amp; Organograma). Os e-mails que faltarem em Contatos também são completados.</div></div>
             <div class="field"><label>Link do App da Web (botão de aprovação dos e-mails)</label><input id="cWebApp" placeholder="https://script.google.com/.../exec">
               <div id="cWebAppInfo" style="font-size:11px;color:var(--muted);margin-top:5px">Depois de publicar o App da Web (Primeiros passos, etapa 5), cole aqui o URL que termina em /exec.</div></div>
           </div>
@@ -678,7 +681,15 @@ function curto(nome){ var p=String(nome).trim().split(/\s+/); return titulo(p[0]
 function primeiro(nome){ return titulo(String(nome).trim().split(/\s+/)[0]); }
 function ini2(nome){ var p=String(nome).trim().split(/\s+/); return (p[0][0]+(p.length>1?p[p.length-1][0]:"")).toUpperCase(); }
 function cor(nome){ var h=0; for(var i=0;i<nome.length;i++) h=(h*31+nome.charCodeAt(i))>>>0; return PALETA[h%PALETA.length]; }
-function avatar(nome){ return '<div class="avatar" style="background:'+cor(nome)+'">'+ini2(nome)+'</div>'; }
+var FOTOS={};
+function avatar(nome){
+  var f=FOTOS[String(nome).toUpperCase()];
+  if(f) return '<div class="avatar" style="background:'+cor(nome)+' url('+f+') center/cover no-repeat" title="'+esc(titulo(nome))+'"></div>';
+  return '<div class="avatar" style="background:'+cor(nome)+'">'+ini2(nome)+'</div>';
+}
+function carregarFotos(){
+  google.script.run.withSuccessHandler(function(f){ FOTOS=f||{}; if(Object.keys(FOTOS).length){ renderTudo(); if(BF) renderBenef(); if(BH) renderBH(); if(INCD) renderInc(); } }).obterFotosTime();
+}
 function plural(n,s,p){ return n+" "+(n===1?s:p); }
 function filtro(){ return (document.getElementById("busca").value||"").trim().toUpperCase(); }
 function passa(nome){ var f=filtro(); return !f || nome.indexOf(f)!==-1; }
@@ -697,6 +708,7 @@ function carregar(){
     .withSuccessHandler(function(d){
       D=d; HOJE=P(d.hoje);
       document.getElementById("brandSquad").textContent=d.nomeSquad;
+      if(!window.__fotosCarregadas){ window.__fotosCarregadas=true; carregarFotos(); }
       if(!d.configurado && !window.__cfgAberta){ window.__cfgAberta=true; setTimeout(function(){ irPara("setup"); },0); }
       if(!window.__spChecado){ window.__spChecado=true; google.script.run.withSuccessHandler(atualizarBadgeSetup).verificarSetup(); }
       if(!mesRef) mesRef=new Date(HOJE.getFullYear(),HOJE.getMonth(),1);
@@ -1383,6 +1395,7 @@ function carregarConfig(){
     document.getElementById("cAviso").value=c.emailsAviso||"";
     document.getElementById("cWebhook").value="";
     document.getElementById("cWebApp").value=c.urlWebApp||"";
+    document.getElementById("cFotos").value=c.idFotos||"";
     if(!c.urlWebApp && c.urlWebAppAuto) document.getElementById("cWebAppInfo").textContent="Detectado automaticamente: "+c.urlWebAppAuto+" — cole aqui para fixar.";
     document.getElementById("cWebhookInfo").textContent = c.temWebhook? "Já existe um webhook salvo. Deixe em branco para manter ou cole outro para trocar." : "Sem webhook: o aviso diário vai só por e-mail.";
     var sel=document.getElementById("cAgenda");
@@ -1402,6 +1415,12 @@ function virarModelo(){
   google.script.run.withSuccessHandler(function(res){ mostrarMsg("mMsg","ok","✔️ "+res); window.__cfgAberta=false; carregar(); carregarConfig(); })
     .withFailureHandler(function(e){ mostrarMsg("mMsg","err","❌ "+e.message); })
     .transformarEmModelo(document.getElementById("mConf").value);
+}
+function buscarFotos(){
+  var v=document.getElementById("cFotos").value.trim(), m=v.match(/\/d\/([a-zA-Z0-9_-]{20,})/); if(m) v=m[1];
+  mostrarMsg("cMsg","warn","⏳ Buscando fotos…");
+  google.script.run.withSuccessHandler(function(r){ mostrarMsg("cMsg","ok","✔️ "+r); window.__fotosCarregadas=false; carregarFotos(); carregarConfig(); })
+    .withFailureHandler(function(e){ mostrarMsg("cMsg","err","❌ "+e.message); }).sincronizarFotosTime(v);
 }
 function salvarConfig(){
   var membros=[].map.call(document.querySelectorAll("#cMembros tr"),function(tr){ return {nome:tr.querySelector(".mNome").value,email:tr.querySelector(".mEmail").value}; });

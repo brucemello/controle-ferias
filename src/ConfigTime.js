@@ -75,6 +75,7 @@ function obterConfiguracaoTime() {
     idAgenda: atual,
     emailsAviso: emailsAviso_(),
     urlWebApp: PropertiesService.getScriptProperties().getProperty("URL_WEBAPP") || "",
+    idFotos: (function() { try { return idPlanilhaFotos_(); } catch (e) { return ""; } })(),
     urlWebAppAuto: (function() { try { const s = ScriptApp.getService(); return s.isEnabled() ? (s.getUrl() || "") : ""; } catch (e) { return ""; } })(),
     temWebhook: !!webhookChat_(),
     agendas: agendas,
@@ -200,7 +201,8 @@ function gravarMembros_(ss, membros) {
 function limparDadosTime_(ss) {
   const abas = {
     "Controle Consolidado - 2026": 2, "Folgas e Emendas - 2026": 2, "Aprovações": 2,
-    "Controle de Conflitos": 6, "Admisssão": 2, "MVT": 2, "TIME": 2, "Contatos": 2
+    "Controle de Conflitos": 6, "Admisssão": 2, "MVT": 2, "TIME": 2, "Contatos": 2,
+    "Fotos": 2, "Banco de Horas": 2, "Férias Incentivadas": 2, "Adesões Incentivadas": 2
   };
   Object.keys(abas).forEach(nome => {
     const aba = ss.getSheetByName(nome);

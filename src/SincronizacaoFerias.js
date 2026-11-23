@@ -146,6 +146,7 @@ function sincronizacaoAutomatica(motivo) {
   try { atualizarAbaControleConflitos(false); etapas.push("Conflitos atualizados."); }
   catch (e) { erros.push("Controle de conflitos: " + e.message); }
   try { verificarBancoHoras_(); } catch (e) { erros.push("Banco de horas: " + e.message); }
+  try { if (idPlanilhaFotos_()) sincronizarFotosTime(); } catch (e) { Logger.log("Fotos: " + e.message); }
 
   registrarUltimaSinc_(motivo, etapas.concat(erros.map(x => "❌ " + x)).join(" · "));
   lock.releaseLock();
