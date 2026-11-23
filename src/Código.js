@@ -1007,7 +1007,8 @@ function atualizarAbaControleConflitos(enviarEmail) {
       
       // Ignora datas passadas ou ausências finalizadas/pagas
       if (dFimMs < hojeMs || situacaoUpper.includes("FINALIZADA") || situacaoUpper.includes("PAGA") ||
-          situacaoUpper.indexOf("REPROVADO") === 0 || situacaoUpper.indexOf("AJUSTE SOLICITADO") === 0) {
+          situacaoUpper.indexOf("REPROVADO") === 0 || situacaoUpper.indexOf("AJUSTE SOLICITADO") === 0 ||
+          situacaoUpper.indexOf("INCENTIVADAS") !== -1) {
         continue;
       }
       

@@ -299,6 +299,24 @@
   .bf-add{display:inline-flex;gap:4px;align-items:center;margin-top:3px}
   .bf-add select,.bf-add input{padding:4px 6px;border:1px solid var(--line);border-radius:6px;font-family:inherit;font-size:11.5px}
   table.t td input[type=date]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12px;background:#fbfcfe}
+  .inc-camp{margin-bottom:16px}
+  .inc-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+  .inc-head h2{margin:0;font-size:17px}
+  .inc-ops{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}
+  .inc-op{border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff;position:relative}
+  .inc-op.minha{border:2px solid var(--teal);background:#f3fbfa}
+  .inc-op h4{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:14px}
+  .inc-tl{display:flex;align-items:stretch;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .inc-st{flex:1;min-width:86px;border-radius:10px;padding:7px 8px;font-size:11px;color:#fff;line-height:1.35}
+  .inc-st b{display:block;font-size:12px}
+  .st-ferias{background:#7c3aed}.st-abono{background:#2563eb}.st-ret{background:#475569}
+  .inc-total{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:10px}
+  .inc-total b{font-size:20px;color:var(--ink)}
+  .inc-adesoes{border-top:1px solid var(--line);padding-top:8px;margin-top:6px;font-size:12px}
+  .inc-ad{display:flex;align-items:center;gap:8px;padding:4px 0}
+  .inc-ad .avatar{width:24px;height:24px;font-size:9.5px}
+  .inc-form .op-row{display:grid;grid-template-columns:1fr 1fr 1fr 1.6fr 1fr 28px;gap:6px;margin-bottom:6px;align-items:center}
+  .inc-form input{padding:7px 8px;border:1px solid var(--line);border-radius:8px;font-family:inherit;font-size:12px;width:100%}
   .loading{position:fixed;inset:0;background:rgba(238,241,246,.85);display:grid;place-items:center;z-index:50;font-weight:600;color:var(--muted)}
   .loading i{font-size:26px;color:var(--teal);margin-bottom:8px;display:block;text-align:center}
   .hide{display:none!important}
@@ -321,6 +339,7 @@
       <li data-view="lancar"><i class="fa-solid fa-plane-departure"></i>Novo lançamento</li>
       <li data-view="benef"><i class="fa-solid fa-gift"></i>Benefícios</li>
       <li data-view="bh"><i class="fa-regular fa-clock"></i>Banco de horas</li>
+      <li data-view="inc"><i class="fa-solid fa-umbrella-beach"></i>Férias incentivadas <span class="count hide" id="navInc">0</span></li>
       <li data-view="sinc"><i class="fa-solid fa-arrows-rotate"></i>Sincronizar</li>
       <li data-view="config"><i class="fa-solid fa-gear"></i>Configuração</li>
       <li data-view="setup"><i class="fa-solid fa-list-check"></i>Primeiros passos <span class="count hide" id="navSetup">0</span></li>
@@ -510,6 +529,29 @@
         </div>
       </section>
 
+      <!-- FÉRIAS INCENTIVADAS -->
+      <section class="view" id="v-inc">
+        <div class="card" style="margin-bottom:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <i class="fa-solid fa-user" style="color:var(--teal)"></i><b>Quem está aderindo:</b>
+          <select id="incNome" style="padding:8px 10px;border:1px solid var(--line);border-radius:10px;font-family:inherit;min-width:260px" onchange="renderInc()"></select>
+          <span style="color:var(--muted);font-size:12px">Escolha a opção abaixo e clique em <b>Tenho interesse</b>. Dá para trocar ou cancelar até o prazo de adesão.</span>
+          <button class="btn btn-main hide" id="incNovaBtn" style="width:auto;margin-left:auto" onclick="abrirFormInc()"><i class="fa-solid fa-plus"></i> Nova campanha</button>
+        </div>
+        <div class="card inc-form hide" id="incForm" style="margin-bottom:14px">
+          <h3><i class="fa-solid fa-bullhorn" style="color:var(--purple)"></i>Campanha de férias incentivadas</h3>
+          <div class="two"><div class="field"><label>Nome da campanha</label><input id="incCNome" placeholder="Férias Incentivadas 2026"></div>
+            <div class="field"><label>Prazo para os devs aderirem</label><input id="incCPrazo" type="date"></div></div>
+          <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;display:grid;grid-template-columns:1fr 1fr 1fr 1.6fr 1fr 28px;gap:6px">
+            <span>Opção</span><span>Início férias</span><span>Fim férias</span><span>Dias abonados (dd/mm/aaaa; …)</span><span>Retorno</span><span></span></div>
+          <div id="incOps"></div>
+          <button class="btn btn-sm" style="color:var(--purple)" onclick="addOpInc()"><i class="fa-solid fa-plus"></i> Opção</button>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Se deixar o retorno vazio, ele é calculado como o próximo dia útil depois do último dia abonado.</div>
+          <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-main" style="width:auto" onclick="salvarCampInc()">Salvar campanha</button><button class="btn btn-out" onclick="document.getElementById('incForm').classList.add('hide')">Cancelar</button></div>
+        </div>
+        <div id="incLista"></div>
+        <div class="msg" id="incMsg"></div>
+      </section>
+
       <!-- BANCO DE HORAS -->
       <section class="view" id="v-bh">
         <div class="grid" style="grid-template-columns:1.3fr 1fr;margin-bottom:14px">
@@ -675,7 +717,7 @@ function renderTudo(){
 }
 
 // ---------- navegação ----------
-var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos",benef:"Benefícios",bh:"Banco de horas"};
+var TITULOS={geral:"Visão geral",equipe:"Equipe",calendario:"Calendário",timeline:"Linha do tempo",conflitos:"Conflitos e aprovações",lancar:"Novo lançamento",sinc:"Sincronizar",config:"Configuração do time",setup:"Primeiros passos",benef:"Benefícios",bh:"Banco de horas",inc:"Férias incentivadas"};
 function irPara(v){
   document.querySelectorAll(".nav li").forEach(function(li){ li.classList.toggle("active", li.dataset.view===v); });
   document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
@@ -685,6 +727,7 @@ function irPara(v){
   if(v==="setup") carregarSetup();
   if(v==="benef") carregarBenef();
   if(v==="bh") carregarBH();
+  if(v==="inc") carregarInc();
 }
 document.querySelectorAll(".nav li").forEach(function(li){ li.onclick=function(){ irPara(li.dataset.view); }; });
 
@@ -1036,6 +1079,86 @@ function salvar(){
       btn.textContent=txt; btn.disabled=false;
     })
     .salvarSugestaoDev(payload);
+}
+
+// ---------- férias incentivadas ----------
+var INCD=null, incEditId=null;
+function carregarInc(){
+  google.script.run.withSuccessHandler(function(d){
+    INCD=d;
+    var sel=document.getElementById("incNome"), atual=sel.value || d.meuNome || "";
+    sel.innerHTML='<option value="">Selecione seu nome…</option>'+d.time.map(function(n){return '<option value="'+esc(n)+'">'+esc(titulo(n))+'</option>';}).join("");
+    sel.value=atual;
+    document.getElementById("incNovaBtn").classList.toggle("hide",!d.ehGestor);
+    var abertas=d.campanhas.filter(function(c){return c.ativa&&!c.encerrada;}).length;
+    var b=document.getElementById("navInc"); b.textContent=abertas; b.classList.toggle("hide",!abertas);
+    renderInc();
+  }).withFailureHandler(function(e){ mostrarMsg("incMsg","err","❌ "+e.message); }).obterIncentivadas();
+}
+function renderInc(){
+  if(!INCD) return;
+  var eu=document.getElementById("incNome").value;
+  var h=INCD.campanhas.map(function(c){
+    var aberta=c.ativa&&!c.encerrada;
+    var ops=c.opcoes.map(function(o){
+      var minha=o.adesoes.filter(function(a){return a.nome===eu;})[0];
+      var tl='<div class="inc-tl"><div class="inc-st st-ferias"><b>'+FC(o.inicio)+' a '+FC(o.fim)+'</b>Férias legais ('+o.diasFerias+' dias)</div>'+
+        o.abonados.map(function(a){return '<div class="inc-st st-abono"><b>'+FC(a)+'</b>Dia abonado</div>';}).join("")+
+        '<div class="inc-st st-ret"><b>'+FC(o.retorno)+'</b>Retorno</div></div>';
+      var ads=o.adesoes.map(function(a){
+        var pill=a.status==="Confirmado"?'<span class="pill p-teal">Confirmado</span>':a.status==="Recusado"?'<span class="pill p-gray">Recusado</span>':'<span class="pill p-yellow">Interesse</span>';
+        var acoes=(INCD.ehGestor&&a.status==="Interesse")? '<button class="btn btn-sm" style="color:var(--teal);margin-left:auto" onclick="decidirInc(\''+a.id+'\',true)">Confirmar</button><button class="btn btn-sm" style="color:var(--red)" onclick="decidirInc(\''+a.id+'\',false)">Recusar</button>' : '';
+        return '<div class="inc-ad">'+avatar(a.nome)+'<span>'+esc(curto(a.nome))+'</span>'+pill+acoes+'</div>';
+      }).join("") || '<div style="color:var(--muted)">Ninguém aderiu ainda.</div>';
+      var fora=o.foraNoPeriodo.length? '<div style="font-size:11.5px;color:#8a6100;margin-bottom:8px"><i class="fa-solid fa-triangle-exclamation"></i> Já estão fora nesse período: '+o.foraNoPeriodo.map(curto).map(esc).join(", ")+'</div>' : '';
+      var botao='';
+      if(aberta && eu){
+        if(minha && minha.status==="Interesse") botao='<button class="btn btn-out" onclick="cancelarInc(\''+c.id+'\')">Cancelar meu interesse</button>';
+        else if(!minha){
+          var outra=c.opcoes.some(function(x){return x!==o && x.adesoes.some(function(a){return a.nome===eu && a.status!=="Recusado";});});
+          botao='<button class="btn '+(outra?"btn-out":"btn-main")+'" style="width:auto" onclick="interesseInc(\''+c.id+'\',\''+esc(o.opcao)+'\')"><i class="fa-solid '+(outra?"fa-right-left":"fa-hand")+'"></i> '+(outra?"Trocar para esta opção":"Tenho interesse")+'</button>';
+        }
+      }
+      return '<div class="inc-op'+(minha?" minha":"")+'"><h4><span class="pill p-purple">'+esc(o.opcao)+'</span>'+(minha?'<span class="pill p-teal" style="margin-left:auto">sua escolha</span>':'')+'</h4>'+tl+
+        '<div class="inc-total"><i class="fa-solid fa-umbrella-beach" style="font-size:18px;color:var(--teal)"></i>Total de dias de descanso <b>'+o.totalDescanso+'</b></div>'+fora+botao+
+        '<div class="inc-adesoes"><b>'+plural(o.adesoes.length,"adesão","adesões")+'</b>'+ads+'</div></div>';
+    }).join("");
+    var gest=INCD.ehGestor? '<span style="margin-left:auto;display:flex;gap:6px"><button class="btn btn-sm" onclick="editarCampInc(\''+c.id+'\')">Editar</button><button class="btn btn-sm" onclick="encerrarInc(\''+c.id+'\','+(!c.ativa)+')">'+(c.ativa?"Encerrar adesões":"Reabrir")+'</button></span>' : '';
+    return '<div class="card inc-camp"><div class="inc-head"><h2>🏝️ '+esc(c.nome)+'</h2>'+(aberta? '<span class="pill p-teal">Adesão aberta'+(c.prazo?" até "+F(c.prazo):"")+'</span>' : '<span class="pill p-gray">Adesão encerrada</span>')+gest+'</div><div class="inc-ops">'+ops+'</div></div>';
+  }).join("");
+  document.getElementById("incLista").innerHTML = h || '<div class="card">'+vazio("fa-umbrella-beach", INCD.ehGestor? "Nenhuma campanha cadastrada. Clique em Nova campanha quando a empresa liberar." : "Nenhuma campanha de férias incentivadas no momento.")+'</div>';
+}
+function incRun(fn,args,okMsg){
+  mostrarMsg("incMsg","warn","⏳ Processando…");
+  var r=google.script.run.withSuccessHandler(function(res){ mostrarMsg("incMsg","ok","✔️ "+res); carregarInc(); carregar(); })
+    .withFailureHandler(function(e){ mostrarMsg("incMsg","err","❌ "+e.message); });
+  r[fn].apply(r,args);
+}
+function interesseInc(id,op){ var n=document.getElementById("incNome").value; if(!n){ mostrarMsg("incMsg","err","❌ Escolha seu nome."); return; } incRun("registrarInteresseIncentivada",[n,id,op]); }
+function cancelarInc(id){ incRun("cancelarInteresseIncentivada",[document.getElementById("incNome").value,id]); }
+function decidirInc(id,ok){ var obs=""; incRun("decidirIncentivada",[id,ok,obs]); }
+function encerrarInc(id,reabrir){ incRun("encerrarCampanhaIncentivada",[id,reabrir]); }
+function linhaOpInc(o){
+  o=o||{};
+  return '<div class="op-row"><input class="iO" value="'+esc(o.opcao||"")+'" placeholder="Opção I"><input class="iI" type="date" value="'+(o.inicio||"")+'"><input class="iF" type="date" value="'+(o.fim||"")+'">'+
+    '<input class="iA" value="'+esc((o.abonados||[]).map(function(a){return F(a);}).join("; "))+'" placeholder="31/12/2026; 04/01/2027"><input class="iR" type="date" value="'+(o.retorno||"")+'">'+
+    '<button class="btn btn-sm" style="color:var(--muted);padding:4px" onclick="this.parentNode.remove()"><i class="fa-solid fa-xmark"></i></button></div>';
+}
+function addOpInc(o){ document.getElementById("incOps").insertAdjacentHTML("beforeend",linhaOpInc(o)); }
+function abrirFormInc(){ incEditId=null; document.getElementById("incCNome").value=""; document.getElementById("incCPrazo").value=""; document.getElementById("incOps").innerHTML=""; addOpInc({opcao:"Opção I"}); addOpInc({opcao:"Opção II"}); document.getElementById("incForm").classList.remove("hide"); }
+function editarCampInc(id){
+  var c=INCD.campanhas.filter(function(x){return x.id===id;})[0]; if(!c) return;
+  incEditId=id; document.getElementById("incCNome").value=c.nome; document.getElementById("incCPrazo").value=c.prazo||"";
+  document.getElementById("incOps").innerHTML=""; c.opcoes.forEach(addOpInc); document.getElementById("incForm").classList.remove("hide");
+}
+function salvarCampInc(){
+  var ops=[].map.call(document.querySelectorAll("#incOps .op-row"),function(r){
+    return {opcao:r.querySelector(".iO").value, inicio:r.querySelector(".iI").value, fim:r.querySelector(".iF").value,
+      abonados:r.querySelector(".iA").value.split(/[;,]/).map(function(x){x=x.trim(); var m=x.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/); return m? m[3]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[1]).padStart(2,"0") : "";}).filter(Boolean),
+      retorno:r.querySelector(".iR").value};
+  });
+  incRun("salvarCampanhaIncentivada",[{id:incEditId, nome:document.getElementById("incCNome").value, prazo:document.getElementById("incCPrazo").value, opcoes:ops}]);
+  document.getElementById("incForm").classList.add("hide");
 }
 
 // ---------- banco de horas ----------
