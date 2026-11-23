@@ -548,6 +548,18 @@
           </div>
 
           <div class="card sinc-card" style="grid-column:1/-1">
+            <h3><span class="ic" style="background:var(--red-l);color:#b42328"><i class="fa-solid fa-user-slash"></i></span>Pessoas que não são do time</h3>
+            <p>A importação só traz quem está na aba <b>TIME</b> (Configuração → Pessoas do time). Se entraram linhas de outro time, confira aqui e remova. As férias delas também saem da agenda do time.</p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-sec" id="bFora" onclick="verForaDoTime()"><i class="fa-solid fa-magnifying-glass"></i> Verificar</button>
+              <span id="foraBox" class="hide" style="display:flex;gap:8px;align-items:center"><input id="foraConf" placeholder="Digite REMOVER" style="padding:9px 12px;border:1px solid #f5c2c4;border-radius:10px;font-family:inherit;width:170px">
+              <button class="btn" style="background:var(--red);color:#fff" onclick="removerFora()">Remover</button></span>
+            </div>
+            <div id="foraLista" style="margin-top:10px;font-size:12.5px"></div>
+            <div class="msg" id="mFora"></div>
+          </div>
+
+          <div class="card sinc-card" style="grid-column:1/-1">
             <h3><span class="ic" style="background:var(--teal-l);color:#0f766e"><i class="fa-solid fa-clock-rotate-left"></i></span>Sincronização automática
               <span style="margin-left:auto;display:flex;align-items:center;gap:10px;font-weight:600;font-size:12px;color:var(--muted)"><span id="sAutoTxt">Desligada</span><label class="switch"><input type="checkbox" id="sAuto" onchange="alternarAuto()"><span></span></label></span></h3>
             <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:20px">
@@ -1251,6 +1263,19 @@ function acaoSinc(qual){
       b.disabled=false; b.innerHTML=html; mostrarMsg(cfg.msg,"err","❌ "+e.message);
     });
   if(qual==="imp") r[cfg.fn](cfg.arg, modoRh); else r[cfg.fn]();
+}
+function verForaDoTime(){
+  var box=document.getElementById("foraLista"); box.innerHTML="Verificando…";
+  google.script.run.withSuccessHandler(function(l){
+    document.getElementById("foraBox").classList.toggle("hide",!l.length);
+    box.innerHTML = l.length? '<b>'+plural(l.length,"pessoa","pessoas")+' fora do time:</b> '+l.map(function(p){return esc(curto(p.nome))+' <span style="color:var(--muted)">('+p.linhas+' linha'+(p.linhas>1?'s':'')+(p.naAgenda?', '+p.naAgenda+' na agenda':'')+')</span>';}).join(" · ")
+      : '<span style="color:#0f766e"><i class="fa-solid fa-circle-check"></i> Ninguém de fora do time na planilha.</span>';
+  }).withFailureHandler(function(e){ box.innerHTML=""; mostrarMsg("mFora","err","❌ "+e.message); }).listarForaDoTime();
+}
+function removerFora(){
+  mostrarMsg("mFora","warn","⏳ Removendo…");
+  google.script.run.withSuccessHandler(function(r){ mostrarMsg("mFora","ok","✔️ "+r); verForaDoTime(); carregar(); })
+    .withFailureHandler(function(e){ mostrarMsg("mFora","err","❌ "+e.message); }).removerForaDoTime(document.getElementById("foraConf").value);
 }
 function alternarAuto(){
   var sw=document.getElementById("sAuto"), ligar=sw.checked;

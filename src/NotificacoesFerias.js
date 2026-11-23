@@ -23,6 +23,7 @@ function notificarProximasFerias() {
   }
 
   const dados = sheet.getDataRange().getValues();
+  const doTime = nomesDoTime_();
   const hoje = new Date();
   let feriasEncontradas = [];
 
@@ -35,6 +36,8 @@ function notificarProximasFerias() {
 
     // Não anuncia férias pendentes de aprovação, reprovadas ou em ajuste
     if (/PENDENTE|REPROVADO|AJUSTE SOLICITADO/i.test(String(situacao))) continue;
+    // Só quem é do time (aba TIME)
+    if (doTime && !doTime[normalizar_(colaborador)]) continue;
 
     if (colaborador && !isNaN(dataInicio.getTime()) && dataInicio >= hoje) {
       const diferencaDias = Math.ceil((dataInicio - hoje) / (1000 * 60 * 60 * 24));

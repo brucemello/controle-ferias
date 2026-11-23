@@ -732,6 +732,8 @@ function importarDadosPorIdPlanilha(idOrigem) {
     var alterados = []; // férias que entraram ou mudaram nesta importação (para o alerta de conflito)
     var novasLinhas = []; // gravadas de uma vez no final (mais confiável que appendRow linha a linha)
     var vistosRH = {};
+    var doTime = nomesDoTime_();
+    var foraDoTime = {};
 
     for (var i = 0; i < dadosRH.length; i++) {
       var r = dadosRH[i];
@@ -739,6 +741,8 @@ function importarDadosPorIdPlanilha(idOrigem) {
       var agend = normalizar_(r[C.agendamento]);
       var dIni = parseData_(r[C.ini]), dFim = parseData_(r[C.fim]);
       if (!nome || !dIni || !dFim) continue;
+      // Só pessoas cadastradas no time (aba TIME). Protege contra exportação de outro time.
+      if (doTime && !doTime[normalizar_(nome)]) { foraDoTime[nome] = true; continue; }
 
       // Férias já gozadas (Finalizadas): entram só como histórico, se ainda não existirem.
       // Não contam como conflito nem vão para a agenda.
@@ -877,7 +881,9 @@ function importarDadosPorIdPlanilha(idOrigem) {
       cont.trocadas + " sugestões substituídas pelas datas do RH, " +
       cont.confirmadas + " confirmadas como AGENDADOS, " +
       cont.ajustadas + " com datas corrigidas, " + cont.iguais + " já estavam em dia" +
-      (cont.historico ? ", " + cont.historico + " férias finalizadas guardadas como histórico" : "") + "." + faixa + avisoFiltro;
+      (cont.historico ? ", " + cont.historico + " férias finalizadas guardadas como histórico" : "") + "." + faixa + avisoFiltro +
+      (Object.keys(foraDoTime).length ? " 🚫 Ignoradas " + Object.keys(foraDoTime).length + " pessoa(s) que não estão no time (aba TIME): " +
+        Object.keys(foraDoTime).slice(0, 5).map(function(n) { return primeiroNome_(n); }).join(", ") + (Object.keys(foraDoTime).length > 5 ? "…" : "") + "." : "");
   } catch (e) {
     throw new Error("Erro durante a importação/atualização: " + e.message);
   }
@@ -908,7 +914,17 @@ function alertarConflitosImportacao_(sheet, alterados) {
 }
 
 // Remove da agenda o evento "Ausência: NOME [Férias...]" que cobre o período antigo
-function removerEventoAgenda_(nome, ini, fim) {
+// Nomes do time (aba TIME), normalizados. null quando a aba está vazia (aceita todos).
+function nomesDoTime_() {
+  var nomes = [];
+  try { nomes = buscarNomesTime(); } catch (e) {}
+  if (!nomes.length) return null;
+  var m = {};
+  nomes.forEach(function(n) { m[normalizar_(n)] = true; });
+  return m;
+}
+
+function removerEventoAgenda_(nome, ini, fim, qualquerTitulo) {
   try {
     if (!ini) return;
     if (!idAgenda_()) return;
@@ -917,7 +933,7 @@ function removerEventoAgenda_(nome, ini, fim) {
     var ate = new Date((fim || ini).getFullYear(), (fim || ini).getMonth(), (fim || ini).getDate() + 2);
     agenda.getEvents(ini, ate).forEach(function(ev) {
       var t = ev.getTitle().toUpperCase();
-      if (t.indexOf("AUSÊNCIA: " + nome) === 0 && t.indexOf("FÉRIAS") !== -1) ev.deleteEvent();
+      if (t.indexOf("AUSÊNCIA: " + nome) === 0 && (qualquerTitulo || t.indexOf("FÉRIAS") !== -1)) ev.deleteEvent();
     });
   } catch (e) {
     Logger.log("Não foi possível remover o evento antigo de " + nome + ": " + e.message);

@@ -20,7 +20,8 @@ function modoRh_() {
 
 // Planilha "Férias_Férias_Tabela..." mais recente visível para quem roda o script
 function exportacaoMaisRecente_() {
-  const q = 'title contains "' + SINC_CONFIG.tituloExportacao + '" and mimeType = "application/vnd.google-apps.spreadsheet" and trashed = false';
+  // Só exportações da própria pessoa: planilhas compartilhadas por outros times ficam de fora
+  const q = 'title contains "' + SINC_CONFIG.tituloExportacao + '" and mimeType = "application/vnd.google-apps.spreadsheet" and trashed = false and \'me\' in owners';
   const it = DriveApp.searchFiles(q);
   let melhor = null;
   while (it.hasNext()) {
@@ -172,4 +173,47 @@ function autorizarPermissoes() {
   vincularPlanilha_();
   const ex = exportacaoMaisRecente_();
   Logger.log("✅ Permissões concedidas. Exportação mais recente: " + (ex ? ex.nome + " (" + ex.criada + ")" : "nenhuma encontrada"));
+}
+
+
+// ---------- Limpeza de pessoas que não são do time ----------
+// Lista linhas da aba Controle Consolidado cujo nome não está na aba TIME.
+function listarForaDoTime() {
+  const doTime = nomesDoTime_();
+  if (!doTime) throw new Error("A aba TIME está vazia: cadastre as pessoas do time em Configuração antes.");
+  const aba = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
+  const res = {};
+  if (aba && aba.getLastRow() > 1) {
+    aba.getRange(2, 1, aba.getLastRow() - 1, 15).getValues().forEach(r => {
+      const n = String(r[1] || "").trim().toUpperCase();
+      if (!n || doTime[normalizar_(n)]) return;
+      if (!res[n]) res[n] = { nome: n, linhas: 0, naAgenda: 0 };
+      res[n].linhas++;
+      if (String(r[14]).indexOf("Espelhado") !== -1) res[n].naAgenda++;
+    });
+  }
+  return Object.keys(res).sort().map(k => res[k]);
+}
+
+// Remove essas linhas e os eventos que elas criaram na agenda do time. Só o gestor.
+function removerForaDoTime(confirmacao) {
+  if (emailLider_()) validarGestor_();
+  if (String(confirmacao || "").trim().toUpperCase() !== "REMOVER") throw new Error("Digite REMOVER para confirmar.");
+  const doTime = nomesDoTime_();
+  if (!doTime) throw new Error("A aba TIME está vazia.");
+  const aba = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
+  const dados = aba.getRange(2, 1, aba.getLastRow() - 1, 15).getValues();
+  const remover = [];
+  let eventos = 0;
+  dados.forEach((r, i) => {
+    const n = String(r[1] || "").trim().toUpperCase();
+    if (!n || doTime[normalizar_(n)]) return;
+    remover.push(i + 2);
+    const ini = parseData_(r[9]), fim = parseData_(r[10]);
+    if (ini && String(r[14]).indexOf("Espelhado") !== -1) { removerEventoAgenda_(n, ini, fim || ini, true); eventos++; }
+  });
+  remover.reverse().forEach(l => aba.deleteRow(l));
+  try { atualizarAbaControleConflitos(false); } catch (e) {}
+  registrarUltimaSinc_("Limpeza", remover.length + " linha(s) de fora do time removidas.");
+  return remover.length + " linha(s) de pessoas fora do time removidas" + (eventos ? " e " + eventos + " evento(s) tirados da agenda do time." : ".");
 }
