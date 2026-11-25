@@ -496,6 +496,18 @@
             <div class="field"><label>Aviso diário de férias — destinatários (separados por vírgula)</label><input id="cAviso" placeholder="gestor@totvs.com.br,time@totvs.com.br"></div>
             <div class="field"><label>Webhook do Google Chat (opcional)</label><input id="cWebhook" placeholder="Cole a URL do webhook do espaço do time">
               <div id="cWebhookInfo" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
+            <div class="field" style="background:#f6f7fa;border-radius:12px;padding:12px 12px 4px">
+              <label style="margin-bottom:10px"><i class="fa-solid fa-sitemap"></i> Aprovação das férias do líder</label>
+              <div class="two">
+                <div class="field"><label>Líder do time</label><select id="cLider"></select></div>
+                <div class="field"><label>Gerente (aprova as férias do líder)</label><input id="cGerNome" placeholder="Nome do gerente"></div>
+              </div>
+              <div class="two">
+                <div class="field"><label>E-mail do gerente</label><input id="cGerEmail" placeholder="gerente@totvs.com.br"></div>
+                <div class="field"><label>ID da agenda da Tribe (opcional)</label><input id="cTribe" placeholder="...@group.calendar.google.com"></div>
+              </div>
+              <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Quando o líder lança férias, elas <b>sempre</b> vão para o gerente aprovar (com ou sem conflito). Aprovadas, entram na agenda do time e, se informada, na agenda da Tribe. O ID fica em Google Agenda → configurações da agenda → <i>Integrar agenda</i> → ID da agenda.</div>
+            </div>
             <div class="field"><label>Fotos do time: planilha do Agente A.I.F.R.E.A.D (opcional)</label>
               <div style="display:flex;gap:6px"><input id="cFotos" placeholder="ID ou link da planilha do Agente" style="flex:1"><button class="btn btn-sm" style="color:var(--teal)" onclick="buscarFotos()"><i class="fa-solid fa-camera"></i> Buscar fotos</button></div>
               <div id="cFotosInfo" style="font-size:11px;color:var(--muted);margin-top:5px">As fotos vêm da aba TIME_FOTOS do Agente (Pessoas → Time &amp; Organograma). Os e-mails que faltarem em Contatos também são completados.</div></div>
@@ -941,7 +953,7 @@ function renderConflitos(){
 
   var pend=D.pendentes.filter(function(p){ return passa(String(p.nome).toUpperCase()); });
   document.getElementById("listaPend").innerHTML = pend.length? pend.map(function(p){
-    return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div><div class="dt">conflita com: '+esc(p.conflitos)+'</div></div>'+
+    return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div>'+(p.tipo==="LIDER"? '<div class="dt"><i class="fa-solid fa-sitemap"></i> férias do líder · aprovação: '+esc(p.aprovador)+'</div>' : '<div class="dt">conflita com: '+esc(p.conflitos)+'</div>')+'</div>'+
       '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+'</div></div>';
   }).join("")+'<div style="font-size:11px;color:var(--muted);margin-top:10px"><i class="fa-regular fa-envelope"></i> A decisão é feita pelo botão “Analisar e decidir” no e-mail de cada solicitação.</div>' : vazio("fa-inbox","Nenhum lançamento aguardando aprovação.");
 }
@@ -1048,6 +1060,9 @@ function atualizarPrevia(){
     var outros=nomesUnicos(fora(f.ini).filter(function(p){return p.nome!==f.nome;}));
     h+='<div class="status-box ok"><i class="fa-solid fa-circle-check"></i> Folga avulsa: grava e vai direto para a agenda.'+(outros.length?'<br>Também fora nesse dia: <b>'+outros.map(curto).map(esc).join(", ")+'</b>.':"")+'</div>';
     btn.textContent="Registrar folga"; btn.classList.remove("warn");
+  } else if(D.lider && f.nome===D.lider){
+    h+='<div class="status-box warn"><i class="fa-solid fa-sitemap"></i> <b>Férias do líder:</b> vão para aprovação de <b>'+esc(D.gerente)+'</b> e só entram na agenda depois de aprovadas.'+(conf.length?'<br>Coincidem com: '+nomesUnicos(conf).map(curto).map(esc).join(", ")+'.':'')+'</div>';
+    btn.textContent="Enviar para aprovação do gerente"; btn.classList.add("warn");
   } else if(!conf.length){
     h+='<div class="status-box ok"><i class="fa-solid fa-circle-check"></i> <b>Sem conflito.</b> Ninguém do time está de férias nesse período. Grava e vai direto para a agenda.</div>';
     btn.textContent="Registrar férias"; btn.classList.remove("warn");
@@ -1396,6 +1411,9 @@ function carregarConfig(){
     document.getElementById("cWebhook").value="";
     document.getElementById("cWebApp").value=c.urlWebApp||"";
     document.getElementById("cFotos").value=c.idFotos||"";
+    var selL=document.getElementById("cLider");
+    selL.innerHTML='<option value="">Ninguém (sem aprovação do gerente)</option>'+(c.time||[]).map(function(n){ n=String(n).toUpperCase(); return '<option value="'+esc(n)+'">'+esc(titulo(n))+'</option>'; }).join("");
+    selL.value=c.liderNome||""; document.getElementById("cGerNome").value=c.gerenteNome||""; document.getElementById("cGerEmail").value=c.gerenteEmail||""; document.getElementById("cTribe").value=c.idAgendaTribe||"";
     if(!c.urlWebApp && c.urlWebAppAuto) document.getElementById("cWebAppInfo").textContent="Detectado automaticamente: "+c.urlWebAppAuto+" — cole aqui para fixar.";
     document.getElementById("cWebhookInfo").textContent = c.temWebhook? "Já existe um webhook salvo. Deixe em branco para manter ou cole outro para trocar." : "Sem webhook: o aviso diário vai só por e-mail.";
     var sel=document.getElementById("cAgenda");
@@ -1429,6 +1447,8 @@ function salvarConfig(){
     nomeSquad:document.getElementById("cNome").value, emailGestor:document.getElementById("cGestor").value,
     idAgenda:document.getElementById("cAgenda").value, emailsAviso:document.getElementById("cAviso").value,
     webhook: wh || null, urlWebApp: document.getElementById("cWebApp").value, membros:membros,
+    liderNome: document.getElementById("cLider").value, gerenteNome: document.getElementById("cGerNome").value,
+    gerenteEmail: document.getElementById("cGerEmail").value, idAgendaTribe: document.getElementById("cTribe").value,
     limparDados:document.getElementById("cLimpar").checked, confirmacao:document.getElementById("cConf").value
   };
   var b=document.getElementById("cSalvar"), html=b.innerHTML;

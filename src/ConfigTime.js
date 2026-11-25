@@ -17,7 +17,10 @@ const PADRAO_ORIGINAL = {
   EMAIL_GESTOR: "bruce.mello@totvs.com.br",
   ID_AGENDA: "c_309f2f359160bb1d732268dbb2e33b80dda091c626cbb2f997c8066a87c004af@group.calendar.google.com",
   EMAILS_AVISO: "bruce.mello@totvs.com.br,squad.tributos@totvs.com.br",
-  ID_PLANILHA_RH: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE"
+  ID_PLANILHA_RH: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE",
+  LIDER_NOME: "BRUCE EGNOR MAGALHAES DE MELLO",
+  GERENTE_NOME: "ROBSON ALVES BEZERRA",
+  GERENTE_EMAIL: "robson.bezerra@totvs.com.br"
 };
 
 const CHAVES_CONFIG = ["NOME_SQUAD", "EMAIL_GESTOR", "ID_AGENDA", "EMAILS_AVISO", "WEBHOOK_CHAT"];
@@ -32,6 +35,7 @@ function ehPlanilhaOriginal_() {
 
 function cfg_(chave) {
   const v = PropertiesService.getScriptProperties().getProperty(chave);
+  if (v === " ") return "";               // apagado de propósito na Configuração
   if (v !== null && v !== "") return v;
   return ehPlanilhaOriginal_() ? (PADRAO_ORIGINAL[chave] || "") : "";
 }
@@ -41,6 +45,13 @@ function emailLider_() { return cfg_("EMAIL_GESTOR"); }
 function idAgenda_() { return String(cfg_("ID_AGENDA") || "").trim(); }
 function emailsAviso_() { return cfg_("EMAILS_AVISO"); }
 function webhookChat_() { return cfg_("WEBHOOK_CHAT"); }
+
+// Hierarquia: as férias do líder vão para aprovação do gerente
+function liderNome_() { return String(cfg_("LIDER_NOME") || "").trim().toUpperCase(); }
+function gerenteNome_() { return String(cfg_("GERENTE_NOME") || "").trim(); }
+function gerenteEmail_() { return String(cfg_("GERENTE_EMAIL") || "").trim().toLowerCase(); }
+function idAgendaTribe_() { return String(cfg_("ID_AGENDA_TRIBE") || "").trim(); }
+function ehLider_(nome) { return !!liderNome_() && !!gerenteEmail_() && normalizar_(nome) === normalizar_(liderNome_()); }
 
 function timeConfigurado_() {
   return !!(emailLider_() && idAgenda_());
@@ -75,6 +86,7 @@ function obterConfiguracaoTime() {
     idAgenda: atual,
     emailsAviso: emailsAviso_(),
     urlWebApp: PropertiesService.getScriptProperties().getProperty("URL_WEBAPP") || "",
+    liderNome: liderNome_(), gerenteNome: gerenteNome_(), gerenteEmail: gerenteEmail_(), idAgendaTribe: idAgendaTribe_(),
     idFotos: (function() { try { return idPlanilhaFotos_(); } catch (e) { return ""; } })(),
     urlWebAppAuto: (function() { try { const s = ScriptApp.getService(); return s.isEnabled() ? (s.getUrl() || "") : ""; } catch (e) { return ""; } })(),
     temWebhook: !!webhookChat_(),
@@ -128,6 +140,14 @@ function salvarConfiguracaoTime(dados) {
     EMAILS_AVISO: String(dados.emailsAviso || "").trim(),
     ID_PLANILHA: ss.getId()
   });
+  // Líder / gerente / agenda da Tribe
+  if (typeof dados.liderNome === "string") {
+    const ge = String(dados.gerenteEmail || "").trim().toLowerCase();
+    if (ge && !/^[^@\s]+@[^@\s]+$/.test(ge)) throw new Error("Informe um e-mail de gerente válido.");
+    const pares = { LIDER_NOME: String(dados.liderNome || "").trim().toUpperCase(), GERENTE_NOME: String(dados.gerenteNome || "").trim(),
+      GERENTE_EMAIL: ge, ID_AGENDA_TRIBE: String(dados.idAgendaTribe || "").trim() };
+    Object.keys(pares).forEach(k => { if (pares[k]) props.setProperty(k, pares[k]); else props.setProperty(k, " "); });
+  }
   if (typeof dados.urlWebApp === "string") {
     const u = dados.urlWebApp.trim();
     if (!u) props.deleteProperty("URL_WEBAPP");

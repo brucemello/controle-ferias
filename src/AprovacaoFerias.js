@@ -45,7 +45,7 @@ const COL_CTRL = { NOME: 2, SITUACAO: 5, INICIO: 10, FIM: 11, RETORNO_AFAST: 14,
 const COL_APR = {
   ID: 1, DATA_SOL: 2, NOME: 3, INICIO: 4, FIM: 5, DIAS: 6, CONFLITOS: 7,
   LINHA: 8, STATUS: 9, DECIDIDO_POR: 10, DATA_DECISAO: 11, COMENTARIO: 12,
-  TOKEN: 13, SITUACAO_ORIGINAL: 14
+  TOKEN: 13, SITUACAO_ORIGINAL: 14, APROVADOR: 15, TIPO: 16
 };
 
 // =========================================================================
@@ -96,20 +96,27 @@ function processarLancamentoFerias(linha) {
   if (!nome || !inicio || !fim) return { status: "ignorado" };
 
   const conflitos = encontrarConflitos_(nome, inicio, fim, listarPeriodosAtivos_(controle, linha));
-  if (conflitos.length === 0) return { status: "sem_conflito" };
+  const lider = ehLider_(nome);   // férias do líder: sempre vão para o gerente
+  if (conflitos.length === 0 && !lider) return { status: "sem_conflito" };
 
   const situacaoOriginal = String(row[COL_CTRL.SITUACAO - 1] || "").trim();
   controle.getRange(linha, COL_CTRL.SITUACAO).setValue(PREFIXO_PENDENTE + situacaoOriginal);
-  controle.getRange(linha, COL_CTRL.STATUS).setValue("Aguardando aprovação do gestor");
+  controle.getRange(linha, COL_CTRL.STATUS).setValue(lider ? "Aguardando aprovação do gerente" : "Aguardando aprovação do gestor");
   controle.getRange(linha, 1, 1, 17).setBackground("#fff3e0");
 
-  const sol = registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal);
+  const sol = registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal,
+    lider ? gerenteEmail_() : emailGestor_(), lider ? "LIDER" : "CONFLITO");
 
   notificarGestor_(sol, conflitos);
   notificarSolicitante_(sol, conflitos);
   notificarEnvolvidos_(sol, conflitos);
 
   const nomes = agruparPorNome_(conflitos).map(g => g.nome).join(", ");
+  if (lider) {
+    return { status: "pendente", id: sol.id,
+      mensagem: "⚠️ Férias do líder registradas e enviadas para aprovação de " + (gerenteNome_() || gerenteEmail_()) +
+        (nomes ? " (coincidem com: " + nomes + ")" : "") + ". Só vão para a agenda depois de aprovadas. Você receberá a resposta por e-mail." };
+  }
   return {
     status: "pendente",
     id: sol.id,
@@ -151,7 +158,7 @@ function doGetAprovacao(e) {
   if (!sol || sol.token !== p.t) {
     return paginaSimples_("Link inválido", "Solicitação não encontrada ou link inválido.");
   }
-  try { validarGestor_(); } catch (err) { return paginaSimples_("Acesso negado", err.message); }
+  try { validarAprovador_(sol); } catch (err) { return paginaSimples_("Acesso negado", err.message); }
 
   const controle = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
   const linha = localizarLinhaControle_(controle, sol);
@@ -165,6 +172,7 @@ function doGetAprovacao(e) {
     inicioFmt: fmt_(sol.inicio), fimFmt: fmt_(sol.fim), dias: diasEntre_(sol.inicio, sol.fim)
   };
   tpl.podeDecidir = sol.status === STATUS_APR.PENDENTE;
+  tpl.titulo = sol.tipo === "LIDER" ? "Férias do líder para sua aprovação" : (conflitos.length ? "Solicitação de férias com conflito" : "Solicitação de férias");
   tpl.conflitos = conflitos.map(c => ({
     nome: c.nome,
     periodo: fmt_(c.inicioDele) + " a " + fmt_(c.fimDele),
@@ -187,9 +195,9 @@ function registrarDecisao(id, token, acao, comentario, novoInicioIso, novoFimIso
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    validarGestor_();
     const sol = buscarSolicitacao_(id);
     if (!sol || sol.token !== token) throw new Error("Solicitação não encontrada.");
+    validarAprovador_(sol);
     if (sol.status !== STATUS_APR.PENDENTE) return "Esta solicitação já foi decidida (" + sol.status + ").";
 
     const mapa = { APROVAR: STATUS_APR.APROVADO, REPROVAR: STATUS_APR.REPROVADO, AJUSTAR: STATUS_APR.AJUSTE };
@@ -219,7 +227,7 @@ function registrarDecisao(id, token, acao, comentario, novoInicioIso, novoFimIso
         aoAprovarFerias_(controle, linha, sol);
       } else {
         controle.getRange(linha, COL_CTRL.SITUACAO).setValue(novoStatus);
-        controle.getRange(linha, COL_CTRL.STATUS).setValue(novoStatus + " pelo gestor em " + fmt_(new Date()));
+        controle.getRange(linha, COL_CTRL.STATUS).setValue(novoStatus + (sol.tipo === "LIDER" ? " pelo gerente em " : " pelo gestor em ") + fmt_(new Date()));
         controle.getRange(linha, 1, 1, 17).setBackground("#eeeeee");
       }
     }
@@ -249,9 +257,23 @@ function aoAprovarFerias_(controle, linha, sol) {
 
   const titulo = "Ausência: " + nome + " [Férias" + (opcao ? " + " + opcao : "") + "]";
   const ok = injetarEventoNoCalendarioGoogle(titulo, iso_(ini), iso_(retornoAfast || fim));
-  controle.getRange(linha, COL_CTRL.STATUS).setValue(ok
-    ? "Espelhado no Calendar"
-    : "Aprovado (falha ao gravar na agenda)");
+  // Férias do líder aprovadas pelo gerente: também vão para a agenda da Tribe
+  let okTribe = true;
+  if (sol.tipo === "LIDER" && idAgendaTribe_()) okTribe = criarEventoEmAgenda_(idAgendaTribe_(), titulo, ini, retornoAfast || fim);
+  controle.getRange(linha, COL_CTRL.STATUS).setValue(!ok
+    ? "Aprovado (falha ao gravar na agenda)"
+    : (okTribe ? "Espelhado no Calendar" + (sol.tipo === "LIDER" && idAgendaTribe_() ? " + Tribe" : "") : "Espelhado no Calendar (falha na agenda da Tribe)"));
+}
+
+// Evento de dia inteiro numa agenda qualquer (ex.: agenda da Tribe); fim inclusivo
+function criarEventoEmAgenda_(idAgenda, titulo, ini, fim) {
+  try {
+    const agenda = CalendarApp.getCalendarById(idAgenda);
+    if (!agenda || !ini) return false;
+    const f = fim || ini;
+    agenda.createAllDayEvent(titulo, new Date(ini.getFullYear(), ini.getMonth(), ini.getDate()), new Date(f.getFullYear(), f.getMonth(), f.getDate() + 1));
+    return true;
+  } catch (e) { Logger.log("Agenda " + idAgenda + ": " + e.message); return false; }
 }
 
 // =========================================================================
@@ -334,10 +356,15 @@ function notificarGestor_(sol, conflitos) {
   const semEmail = [sol.nome].concat(conflitos.map(c => c.nome)).filter(n => !obterEmail_(n));
   const unicosSemEmail = semEmail.filter((n, i) => semEmail.indexOf(n) === i);
 
+  const lider = sol.tipo === "LIDER";
   const corpo =
-    "<p><b>" + esc_(sol.nome) + "</b> lançou férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) +
-    "</b> (" + sol.dias + " dias), em conflito com:</p>" +
-    tabelaConflitosHtml_(conflitos) +
+    (lider
+      ? "<p>Olá" + (gerenteNome_() ? ", <b>" + esc_(primeiroNome_(gerenteNome_())) + "</b>" : "") + "!</p><p><b>" + esc_(sol.nome) + "</b>, líder do time <b>" + esc_(nomeSquad_()) +
+        "</b>, lançou férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) + "</b> (" + sol.dias + " dias) e precisa da sua aprovação." +
+        (idAgendaTribe_() ? " Ao aprovar, as férias entram na agenda do time e na agenda da Tribe." : "") + "</p>" +
+        (conflitos.length ? "<p>Coincidem com férias de:</p>" + tabelaConflitosHtml_(conflitos) : "")
+      : "<p><b>" + esc_(sol.nome) + "</b> lançou férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) +
+        "</b> (" + sol.dias + " dias), em conflito com:</p>" + tabelaConflitosHtml_(conflitos)) +
     (link
       ? "<p style='text-align:center;margin:24px 0'><a href='" + link + "' style='background:#1a73e8;color:#fff;padding:12px 22px;border-radius:6px;text-decoration:none;font-weight:bold'>Analisar e decidir</a></p>"
       : "<p style='color:#d93025'><b>URL do App da Web não configurada:</b> registre a decisão manualmente na aba Aprovações.</p>") +
@@ -345,8 +372,8 @@ function notificarGestor_(sol, conflitos) {
       ? "<p style='font-size:12px;color:#b06000'>⚠️ Sem e-mail cadastrado na aba Contatos: " + unicosSemEmail.map(esc_).join(", ") + "</p>"
       : "");
 
-  enviarEmail_(emailGestor_(),
-    "⚠️ Aprovação necessária: férias de " + sol.nome + " com conflito",
+  enviarEmail_(sol.aprovador || emailGestor_(),
+    lider ? "🏖️ Aprovação necessária: férias do líder " + sol.nome : "⚠️ Aprovação necessária: férias de " + sol.nome + " com conflito",
     "Aprovação de férias", corpo);
 }
 
@@ -354,9 +381,10 @@ function notificarSolicitante_(sol, conflitos) {
   const corpo =
     "<p>Olá, <b>" + esc_(primeiroNome_(sol.nome)) + "</b>!</p>" +
     "<p>Seu lançamento de férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) +
-    "</b> foi registrado, mas coincide com férias de outras pessoas do time:</p>" +
-    tabelaConflitosHtml_(conflitos) +
-    "<p>Ele ficou <b>pendente de aprovação do gestor</b> e só vai para a agenda depois de aprovado. " +
+    (sol.tipo === "LIDER"
+      ? "</b> foi registrado e enviado para aprovação de <b>" + esc_(gerenteNome_() || gerenteEmail_()) + "</b>.</p>" + (conflitos.length ? "<p>Coincide com:</p>" + tabelaConflitosHtml_(conflitos) : "")
+      : "</b> foi registrado, mas coincide com férias de outras pessoas do time:</p>" + tabelaConflitosHtml_(conflitos)) +
+    "<p>Ele ficou <b>pendente de aprovação</b> e só vai para a agenda depois de aprovado. " +
     "Você vai receber a resposta por e-mail. Até lá, evite comprar passagens ou fechar reservas.</p>";
   enviarEmail_(obterEmail_(sol.nome),
     "⏳ Suas férias estão aguardando aprovação (" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) + ")",
@@ -383,7 +411,7 @@ function notificarEnvolvidos_(sol, conflitos) {
 function notificarDecisaoSolicitante_(sol, acao, comentario, novasDatas, conflitos) {
   const periodo = fmt_(sol.inicio) + " a " + fmt_(sol.fim);
   const blocoComentario = comentario
-    ? "<div style='background:#f8f9fa;border-left:4px solid #1a73e8;padding:10px 12px;margin:12px 0'><b>Comentário do gestor:</b><br>" +
+    ? "<div style='background:#f8f9fa;border-left:4px solid #1a73e8;padding:10px 12px;margin:12px 0'><b>Comentário de quem decidiu:</b><br>" +
       esc_(comentario).replace(/\n/g, "<br>") + "</div>"
     : "";
   let titulo, assunto, texto;
@@ -391,7 +419,9 @@ function notificarDecisaoSolicitante_(sol, acao, comentario, novasDatas, conflit
   if (acao === "APROVAR") {
     titulo = "Férias aprovadas ✅";
     assunto = "✅ Férias aprovadas (" + periodo + ")";
-    texto = "<p>Suas férias de <b>" + periodo + "</b> foram <b>aprovadas</b> e já estão na agenda do time.</p>" + blocoComentario +
+    texto = "<p>Suas férias de <b>" + periodo + "</b> foram <b>aprovadas</b>" + (sol.tipo === "LIDER" ? " por <b>" + esc_(gerenteNome_() || gerenteEmail_()) + "</b>" : "") +
+      " e já estão na agenda do time" + (sol.tipo === "LIDER" && idAgendaTribe_() ? " e na agenda da Tribe" : "") + ".</p>" +
+      (sol.tipo === "LIDER" ? "<p>👉 Agora é só <b>marcar as férias no sistema do RH</b>.</p>" : "") + blocoComentario +
       (conflitos.length
         ? "<p>Elas vão coincidir com as férias abaixo. Combine a cobertura das atividades antes de sair:</p>" + tabelaConflitosHtml_(conflitos)
         : "");
@@ -506,17 +536,18 @@ function obterAbaAprovacoes_() {
     aba.setFrozenRows(1);
     aba.hideColumns(COL_APR.TOKEN);
   }
+  if (!aba.getRange(1, COL_APR.APROVADOR).getValue()) aba.getRange(1, COL_APR.APROVADOR, 1, 2).setValues([["Aprovador", "Tipo"]]).setFontWeight("bold");
   return aba;
 }
 
-function registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal) {
+function registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal, aprovador, tipo) {
   const aba = obterAbaAprovacoes_();
   const token = Utilities.getUuid();
   const id = "FER-" + Utilities.formatDate(new Date(), tz_(), "yyyyMMdd-HHmmss") + "-" + token.slice(0, 4);
   const dias = diasEntre_(inicio, fim);
   const resumo = conflitos.map(c => c.nome + " (" + c.dias + "d)").join(", ");
-  aba.appendRow([id, new Date(), nome, inicio, fim, dias, resumo, linha, STATUS_APR.PENDENTE, "", "", "", token, situacaoOriginal]);
-  return { id: id, token: token, nome: nome, inicio: inicio, fim: fim, dias: dias, linha: linha, situacaoOriginal: situacaoOriginal };
+  aba.appendRow([id, new Date(), nome, inicio, fim, dias, resumo, linha, STATUS_APR.PENDENTE, "", "", "", token, situacaoOriginal, aprovador || "", tipo || "CONFLITO"]);
+  return { id: id, token: token, nome: nome, inicio: inicio, fim: fim, dias: dias, linha: linha, situacaoOriginal: situacaoOriginal, aprovador: aprovador || "", tipo: tipo || "CONFLITO" };
 }
 
 function buscarSolicitacao_(id) {
@@ -532,7 +563,9 @@ function buscarSolicitacao_(id) {
         inicio: parseData_(r[COL_APR.INICIO - 1]), fim: parseData_(r[COL_APR.FIM - 1]),
         dias: r[COL_APR.DIAS - 1], linha: r[COL_APR.LINHA - 1],
         status: r[COL_APR.STATUS - 1], token: String(r[COL_APR.TOKEN - 1]),
-        situacaoOriginal: String(r[COL_APR.SITUACAO_ORIGINAL - 1] || "")
+        situacaoOriginal: String(r[COL_APR.SITUACAO_ORIGINAL - 1] || ""),
+        aprovador: String(r[COL_APR.APROVADOR - 1] || "").trim().toLowerCase(),
+        tipo: String(r[COL_APR.TIPO - 1] || "CONFLITO")
       };
     }
   }
@@ -567,6 +600,13 @@ function obterEmail_(nome) {
     }
   }
   return _cacheEmails[normalizar_(nome)] || "";
+}
+
+// Quem pode decidir uma solicitação: o aprovador gravado nela (gerente, para férias do líder) ou o gestor
+function validarAprovador_(sol) {
+  const email = String(Session.getActiveUser().getEmail() || "").toLowerCase();
+  const permitido = String((sol && sol.aprovador) || emailGestor_()).toLowerCase();
+  if (!email || email !== permitido) throw new Error("Esta solicitação só pode ser decidida por " + permitido + ".");
 }
 
 function validarGestor_() {
@@ -638,7 +678,7 @@ const HTML_APROVACAO = [
   ".ok{background:#188038}.no{background:#d93025}.adj{background:#e37400}",
   "#msg{margin-top:16px;font-weight:bold}",
   "</style></head><body><div class='card'>",
-  "<h2>Solicitação de férias com conflito</h2>",
+  "<h2><?= titulo ?></h2>",
   "<p class='sub'><?= sol.id ?> · Status: <?= sol.status ?></p>",
   "<p><b><?= sol.nome ?></b>: <?= sol.inicioFmt ?> a <?= sol.fimFmt ?> (<?= sol.dias ?> dias)</p>",
   "<? if (conflitos.length) { ?>",
