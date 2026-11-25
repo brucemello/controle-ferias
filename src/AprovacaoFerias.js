@@ -606,6 +606,24 @@ function obterEmail_(nome) {
 }
 
 // Quem pode decidir uma solicitação: o aprovador gravado nela (gerente, para férias do líder) ou o gestor
+// Reenvia uma solicitação pendente: cancela a atual e refaz o envio com a
+// configuração de agora (ex.: e-mail do gerente corrigido). Só o gestor.
+function reenviarSolicitacao(id) {
+  validarGestor_();
+  const sol = buscarSolicitacao_(id);
+  if (!sol) throw new Error("Solicitação não encontrada.");
+  if (sol.status !== STATUS_APR.PENDENTE) throw new Error("Só dá para reenviar solicitações pendentes.");
+  if (ehLider_(sol.nome) && gerenteEmail_() === String(emailGestor_()).toLowerCase())
+    throw new Error("O e-mail do gerente na Configuração é o mesmo do gestor. Corrija o e-mail do gerente e salve antes de reenviar.");
+  const controle = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
+  const linha = localizarLinhaControle_(controle, sol);
+  if (!linha) throw new Error("Não achei a linha dessas férias no Controle Consolidado.");
+  sol.aba.getRange(sol.linhaAba, COL_APR.STATUS, 1, 4).setValues([["Cancelada (reenviada)", Session.getActiveUser().getEmail(), new Date(), "Reenviada para " + (ehLider_(sol.nome) ? gerenteEmail_() : emailGestor_())]]);
+  controle.getRange(linha, COL_CTRL.SITUACAO).setValue(sol.situacaoOriginal || "Sugestão do Dev (Padrão)");
+  const res = processarLancamentoFerias(linha);
+  return res.mensagem || "Reenviado. Sem conflito: as férias já seguem para a agenda.";
+}
+
 function validarAprovador_(sol) {
   const email = String(Session.getActiveUser().getEmail() || "").toLowerCase();
   const permitido = String((sol && sol.aprovador) || emailGestor_()).toLowerCase();

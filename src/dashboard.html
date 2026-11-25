@@ -956,8 +956,22 @@ function renderConflitos(){
   var pend=D.pendentes.filter(function(p){ return passa(String(p.nome).toUpperCase()); });
   document.getElementById("listaPend").innerHTML = pend.length? pend.map(function(p){
     return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div>'+(p.tipo==="LIDER"? '<div class="dt"><i class="fa-solid fa-sitemap"></i> férias do líder · aprovação: '+esc(p.aprovador)+'</div>' : '<div class="dt">conflita com: '+esc(p.conflitos)+'</div>')+'</div>'+
-      '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+'</div></div>';
+      '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+
+      (D.ehGestor? ' <button class="btn btn-sm" onclick="reenviar(\''+esc(p.id)+'\',this)" title="Cancela este envio e manda de novo com a configuração atual"><i class="fa-solid fa-paper-plane"></i> Reenviar</button>' : '')+'</div></div>';
   }).join("")+'<div style="font-size:11px;color:var(--muted);margin-top:10px"><i class="fa-regular fa-envelope"></i> A decisão é feita pelo botão “Analisar e decidir” no e-mail de cada solicitação.</div>' : vazio("fa-inbox","Nenhum lançamento aguardando aprovação.");
+}
+
+function reenviar(id,btn){
+  btn.disabled=true; btn.textContent="Reenviando…";
+  google.script.run
+    .withSuccessHandler(function(res){ alertaTopo(res, String(res).indexOf("⚠️")===0?"warn":"ok"); carregar(); })
+    .withFailureHandler(function(e){ alertaTopo("❌ "+e.message,"err"); btn.disabled=false; btn.innerHTML='<i class="fa-solid fa-paper-plane"></i> Reenviar'; })
+    .reenviarSolicitacao(id);
+}
+function alertaTopo(t,tipo){
+  var el=document.getElementById("listaPend"); if(!el) return;
+  var d=document.createElement("div"); d.className="status-box "+(tipo==="err"?"bad":tipo); d.style.marginBottom="10px"; d.textContent=t;
+  el.parentNode.insertBefore(d,el); setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); },12000);
 }
 
 // ---------- lançamento ----------

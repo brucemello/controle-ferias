@@ -196,6 +196,7 @@ function salvarConfiguracaoTime(dados) {
   if (typeof dados.liderNome === "string") {
     const ge = String(dados.gerenteEmail || "").trim().toLowerCase();
     if (ge && !/^[^@\s]+@[^@\s]+$/.test(ge)) throw new Error("Informe um e-mail de gerente válido.");
+    if (ge && ge === emailGestor) throw new Error("O e-mail do gerente não pode ser o mesmo do gestor do time: informe o e-mail de quem aprova as férias do líder.");
     const pares = { LIDER_NOME: String(dados.liderNome || "").trim().toUpperCase(), GERENTE_NOME: String(dados.gerenteNome || "").trim(),
       GERENTE_EMAIL: ge, ID_AGENDA_TRIBE: String(dados.idAgendaTribe || "").trim(),
       PARES_LIDER: String(dados.paresLider || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).join("\n") };
