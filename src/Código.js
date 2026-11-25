@@ -1048,7 +1048,7 @@ function atualizarAbaControleConflitos(enviarEmail) {
       if (a === b) continue;
       var p2 = listaPeriodos[b];
       
-      if (p1.nome.toUpperCase() !== p2.nome.toUpperCase()) {
+      if (p1.nome.toUpperCase() !== p2.nome.toUpperCase() && conflitoRelevante_(p1.nome, p2.nome)) {
         var diasSobreposicao = calcularDiasSobrepostos(p1.dtIniMs, p1.dtFimMs, p2.dtIniMs, p2.dtFimMs);
         
         if (diasSobreposicao > 0) {
@@ -1060,6 +1060,13 @@ function atualizarAbaControleConflitos(enviarEmail) {
       }
     }
     
+    // Líder: também confere as férias do PO/TLs lidas das planilhas deles
+    if (ehNomeLider_(p1.nome)) {
+      periodosExternosPares_().forEach(function(ext) {
+        var d = calcularDiasSobrepostos(p1.dtIniMs, p1.dtFimMs, ext.inicio.getTime(), ext.fim.getTime());
+        if (d > 0) { conflitouCom.push(ext.nome + " (" + d + "d)"); if (d > totalDiasConflito) totalDiasConflito = d; }
+      });
+    }
     var statusConflito = conflitouCom.length > 0 ? "Conflito" : "Sem Conflito";
     var detalheConflito = conflitouCom.length > 0 ? conflitouCom.join(", ") : "-";
     var exibicaoDias = totalDiasConflito > 0 ? totalDiasConflito : "-";

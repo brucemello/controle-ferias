@@ -105,7 +105,7 @@ function obterDadosDashboard() {
   for (let a = 0; a < ativos.length; a++) {
     for (let b = a + 1; b < ativos.length; b++) {
       const p1 = ativos[a], p2 = ativos[b];
-      if (p1.nome === p2.nome) continue;
+      if (p1.nome === p2.nome || !conflitoRelevante_(p1.nome, p2.nome)) continue;
       const s = sobreposicao_(parseData_(p1.inicio), parseData_(p1.fim), parseData_(p2.inicio), parseData_(p2.fim));
       if (!s) continue;
       conflitos.push({
@@ -115,6 +115,20 @@ function obterDadosDashboard() {
       });
     }
   }
+  // Líder × PO/TLs de outras planilhas
+  let externos = [];
+  try { if (liderNome_()) externos = periodosExternosPares_(); } catch (e) {}
+  ativos.filter(p => ehNomeLider_(p.nome)).forEach(p1 => {
+    externos.forEach(p2 => {
+      const s = sobreposicao_(parseData_(p1.inicio), parseData_(p1.fim), p2.inicio, p2.fim);
+      if (!s) return;
+      conflitos.push({
+        a: { nome: p1.nome, inicio: p1.inicio, fim: p1.fim, pendente: p1.pendente },
+        b: { nome: p2.nome, inicio: iso_(p2.inicio), fim: iso_(p2.fim), pendente: false, externo: true },
+        inicio: iso_(s.inicio), fim: iso_(s.fim), dias: s.dias
+      });
+    });
+  });
   conflitos.sort((x, y) => x.inicio < y.inicio ? -1 : x.inicio > y.inicio ? 1 : y.dias - x.dias);
 
   // ---- Pendentes de aprovação ----
@@ -154,6 +168,9 @@ function obterDadosDashboard() {
     pendentes: pendentes,
     config: DASH_CONFIG,
     nomeSquad: nomeSquad_(),
+    liderNome: liderNome_(),
+    pares: paresLider_().map(p => p.nome),
+    paresPeriodos: externos.map(p => ({ nome: p.nome, inicio: iso_(p.inicio), fim: iso_(p.fim) })),
     lider: ehLider_(liderNome_()) ? liderNome_() : "", gerente: gerenteNome_() || gerenteEmail_(),
     configurado: timeConfigurado_(),
     ehGestor: !!usuario && String(usuario).toLowerCase() === String(emailLider_()).toLowerCase()

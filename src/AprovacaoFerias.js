@@ -306,8 +306,11 @@ function encontrarConflitos_(nome, ini, fim, periodos) {
   const alvo = normalizar_(nome);
   const vistos = {};
   const conflitos = [];
+  // Líder: compara só com PO/TLs, incluindo as férias lidas das planilhas deles
+  if (ehNomeLider_(nome)) periodos = periodos.concat(periodosExternosPares_());
   periodos.forEach(p => {
     if (normalizar_(p.nome) === alvo) return;
+    if (!conflitoRelevante_(nome, p.nome)) return;
     const chave = normalizar_(p.nome) + "|" + p.inicio.getTime() + "|" + p.fim.getTime();
     if (vistos[chave]) return; // linhas duplicadas da importação
     const s = sobreposicao_(ini, fim, p.inicio, p.fim);

@@ -20,7 +20,8 @@ const PADRAO_ORIGINAL = {
   ID_PLANILHA_RH: "1xhmo4t63liWnr-GDQyNPbEIOHjfF-va_GxQ2uy4e-aE",
   LIDER_NOME: "BRUCE EGNOR MAGALHAES DE MELLO",
   GERENTE_NOME: "ROBSON ALVES BEZERRA",
-  GERENTE_EMAIL: "robson.bezerra@totvs.com.br"
+  GERENTE_EMAIL: "robson.bezerra@totvs.com.br",
+  PARES_LIDER: "LEANDRO HEILIG PASSOS"
 };
 
 const CHAVES_CONFIG = ["NOME_SQUAD", "EMAIL_GESTOR", "ID_AGENDA", "EMAILS_AVISO", "WEBHOOK_CHAT"];
@@ -51,6 +52,56 @@ function liderNome_() { return String(cfg_("LIDER_NOME") || "").trim().toUpperCa
 function gerenteNome_() { return String(cfg_("GERENTE_NOME") || "").trim(); }
 function gerenteEmail_() { return String(cfg_("GERENTE_EMAIL") || "").trim().toLowerCase(); }
 function idAgendaTribe_() { return String(cfg_("ID_AGENDA_TRIBE") || "").trim(); }
+// PO e outros TLs: as férias do líder só conflitam com eles (não com o time).
+// Uma pessoa por linha: "NOME" ou "NOME; ID ou link da planilha de controle dela".
+function paresLider_() {
+  return String(cfg_("PARES_LIDER") || "").split(/\r?\n/).map(l => {
+    const [nome, plan] = l.split(";");
+    const n = String(nome || "").trim().toUpperCase();
+    if (!n) return null;
+    const m = String(plan || "").match(/[-\w]{25,}/);
+    return { nome: n, planilha: m ? m[0] : "" };
+  }).filter(Boolean);
+}
+function ehNomeLider_(nome) { return !!liderNome_() && normalizar_(nome) === normalizar_(liderNome_()); }
+function ehParLider_(nome) { const n = normalizar_(nome); return paresLider_().some(p => normalizar_(p.nome) === n); }
+// Regra de conflito: líder × (PO/TLs) apenas; líder não entra no conflito dos devs.
+function conflitoRelevante_(a, b) {
+  if (!liderNome_()) return true;
+  const la = ehNomeLider_(a), lb = ehNomeLider_(b);
+  if (la || lb) return ehParLider_(la ? b : a);
+  return true;
+}
+// Férias do PO/TLs lidas das planilhas de controle deles (cache por 10 min)
+function periodosExternosPares_() {
+  const pares = paresLider_().filter(p => p.planilha);
+  if (!pares.length) return [];
+  const cache = CacheService.getScriptCache();
+  const chave = "PARES_EXT_" + pares.map(p => p.nome + p.planilha).join("|").length + "_" + pares.length;
+  try { const c = cache.get(chave); if (c) return JSON.parse(c).map(x => ({ nome: x.nome, inicio: new Date(x.i), fim: new Date(x.f), linha: 0, externo: true })); } catch (e) {}
+  const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  const lista = [];
+  pares.forEach(par => {
+    try {
+      const ss = SpreadsheetApp.openById(par.planilha);
+      const aba = ss.getSheetByName(CONFIG_APROVACAO.abaControle) || ss.getSheets().filter(s => /controle consolidado/i.test(s.getName()))[0];
+      if (!aba || aba.getLastRow() < 2) return;
+      const alvo = normalizar_(par.nome), vistos = {};
+      aba.getRange(2, 1, aba.getLastRow() - 1, 11).getValues().forEach(r => {
+        if (normalizar_(r[COL_CTRL.NOME - 1]) !== alvo) return;
+        const sit = normalizar_(r[COL_CTRL.SITUACAO - 1]);
+        if (situacaoIgnorada_(sit) || sit.indexOf("REPROVADO") === 0 || sit.indexOf("AJUSTE SOLICITADO") === 0) return;
+        const ini = parseData_(r[COL_CTRL.INICIO - 1]), fim = parseData_(r[COL_CTRL.FIM - 1]);
+        if (!ini || !fim || fim < hoje) return;
+        const k = ini.getTime() + "|" + fim.getTime();
+        if (vistos[k]) return; vistos[k] = 1;
+        lista.push({ nome: par.nome, inicio: ini, fim: fim, linha: 0, externo: true });
+      });
+    } catch (e) { Logger.log("Planilha de " + par.nome + ": " + e.message); }
+  });
+  try { cache.put(chave, JSON.stringify(lista.map(x => ({ nome: x.nome, i: x.inicio.getTime(), f: x.fim.getTime() }))), 600); } catch (e) {}
+  return lista;
+}
 function ehLider_(nome) { return !!liderNome_() && !!gerenteEmail_() && normalizar_(nome) === normalizar_(liderNome_()); }
 
 function timeConfigurado_() {
@@ -87,6 +138,7 @@ function obterConfiguracaoTime() {
     emailsAviso: emailsAviso_(),
     urlWebApp: PropertiesService.getScriptProperties().getProperty("URL_WEBAPP") || "",
     liderNome: liderNome_(), gerenteNome: gerenteNome_(), gerenteEmail: gerenteEmail_(), idAgendaTribe: idAgendaTribe_(),
+    paresLider: String(cfg_("PARES_LIDER") || "").trim(),
     idFotos: (function() { try { return idPlanilhaFotos_(); } catch (e) { return ""; } })(),
     urlWebAppAuto: (function() { try { const s = ScriptApp.getService(); return s.isEnabled() ? (s.getUrl() || "") : ""; } catch (e) { return ""; } })(),
     temWebhook: !!webhookChat_(),
@@ -145,7 +197,8 @@ function salvarConfiguracaoTime(dados) {
     const ge = String(dados.gerenteEmail || "").trim().toLowerCase();
     if (ge && !/^[^@\s]+@[^@\s]+$/.test(ge)) throw new Error("Informe um e-mail de gerente válido.");
     const pares = { LIDER_NOME: String(dados.liderNome || "").trim().toUpperCase(), GERENTE_NOME: String(dados.gerenteNome || "").trim(),
-      GERENTE_EMAIL: ge, ID_AGENDA_TRIBE: String(dados.idAgendaTribe || "").trim() };
+      GERENTE_EMAIL: ge, ID_AGENDA_TRIBE: String(dados.idAgendaTribe || "").trim(),
+      PARES_LIDER: String(dados.paresLider || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).join("\n") };
     Object.keys(pares).forEach(k => { if (pares[k]) props.setProperty(k, pares[k]); else props.setProperty(k, " "); });
   }
   if (typeof dados.urlWebApp === "string") {
