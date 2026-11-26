@@ -45,7 +45,7 @@ const COL_CTRL = { NOME: 2, SITUACAO: 5, INICIO: 10, FIM: 11, RETORNO_AFAST: 14,
 const COL_APR = {
   ID: 1, DATA_SOL: 2, NOME: 3, INICIO: 4, FIM: 5, DIAS: 6, CONFLITOS: 7,
   LINHA: 8, STATUS: 9, DECIDIDO_POR: 10, DATA_DECISAO: 11, COMENTARIO: 12,
-  TOKEN: 13, SITUACAO_ORIGINAL: 14, APROVADOR: 15, TIPO: 16
+  TOKEN: 13, SITUACAO_ORIGINAL: 14, APROVADOR: 15, TIPO: 16, SUBSTITUTO: 17
 };
 
 // =========================================================================
@@ -82,7 +82,8 @@ function configurarAprovacaoFerias() {
 // 2. PONTO DE INTEGRAÇÃO (chamado por salvarSugestaoDev após gravar a linha)
 //    Retorno: { status: "sem_conflito" | "pendente" | "ignorado", mensagem }
 // =========================================================================
-function processarLancamentoFerias(linha) {
+function processarLancamentoFerias(linha, extra) {
+  extra = extra || {};
   const ss = planilha_();
   const props = PropertiesService.getScriptProperties();
   if (!props.getProperty("ID_PLANILHA")) props.setProperty("ID_PLANILHA", ss.getId());
@@ -105,7 +106,7 @@ function processarLancamentoFerias(linha) {
   controle.getRange(linha, 1, 1, 17).setBackground("#fff3e0");
 
   const sol = registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal,
-    lider ? gerenteEmail_() : emailGestor_(), lider ? "LIDER" : "CONFLITO");
+    lider ? gerenteEmail_() : emailGestor_(), lider ? "LIDER" : "CONFLITO", lider ? (extra.substituto || "") : "");
 
   notificarGestor_(sol, conflitos);
   notificarSolicitante_(sol, conflitos);
@@ -115,6 +116,7 @@ function processarLancamentoFerias(linha) {
   if (lider) {
     return { status: "pendente", id: sol.id,
       mensagem: "⚠️ Férias do líder registradas e enviadas para aprovação de " + (gerenteNome_() || gerenteEmail_()) +
+        (extra.substituto ? ", com " + extra.substituto + " como TL substituto" : "") +
         (nomes ? " (coincidem com: " + nomes + ")" : "") + ". Só vão para a agenda depois de aprovadas. Você receberá a resposta por e-mail." };
   }
   return {
@@ -169,7 +171,9 @@ function doGetAprovacao(e) {
   const tpl = HtmlService.createTemplate(HTML_APROVACAO);
   tpl.sol = {
     id: sol.id, token: sol.token, nome: sol.nome, status: sol.status,
-    inicioFmt: fmt_(sol.inicio), fimFmt: fmt_(sol.fim), dias: diasEntre_(sol.inicio, sol.fim)
+    inicioFmt: fmt_(sol.inicio), fimFmt: fmt_(sol.fim), dias: diasEntre_(sol.inicio, sol.fim),
+    substituto: sol.substituto || "", lider: sol.tipo === "LIDER",
+    conflitoPO: conflitosComPO_(conflitos).map(c => c.nome).filter((n, i, a) => a.indexOf(n) === i).join(", ")
   };
   tpl.podeDecidir = sol.status === STATUS_APR.PENDENTE;
   tpl.titulo = sol.tipo === "LIDER" ? "Férias do líder para sua aprovação" : (conflitos.length ? "Solicitação de férias com conflito" : "Solicitação de férias");
@@ -286,12 +290,23 @@ function processarPosDecisao() {
   if (fila.length) { try { atualizarAbaControleConflitosSemEmail_(); } catch (e) { Logger.log(e); } }
 }
 
+function notificarSubstituto_(sol) {
+  const par = parLider_(sol.substituto);
+  const email = (par && par.email) || obterEmail_(sol.substituto);
+  if (!email) return;
+  enviarEmail_(email, "👤 Você será o TL substituto de " + sol.nome + " (" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) + ")",
+    "Substituição durante as férias",
+    "<p>Olá, <b>" + esc_(primeiroNome_(sol.substituto)) + "</b>!</p><p>As férias de <b>" + esc_(sol.nome) + "</b>, líder do time <b>" +
+    esc_(nomeSquad_()) + "</b>, foram aprovadas de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) + "</b>, e você foi indicado como <b>TL substituto</b> nesse período.</p>");
+}
+
 function executarPosDecisao_(t) {
   const sol = buscarSolicitacao_(t.id);
   if (!sol) return;
   const controle = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
   const linha = localizarLinhaControle_(controle, sol);
   if (t.acao === "APROVAR" && linha) aoAprovarFerias_(controle, linha, sol);
+  if (t.acao === "APROVAR" && sol.substituto) notificarSubstituto_(sol);
   const novasDatas = t.novasDatas ? { inicio: parseData_(t.novasDatas.inicio), fim: parseData_(t.novasDatas.fim) } : null;
   const conflitos = encontrarConflitos_(sol.nome, sol.inicio, sol.fim, listarPeriodosAtivos_(controle, linha));
   notificarDecisaoSolicitante_(sol, t.acao, t.comentario, novasDatas, conflitos);
@@ -309,7 +324,8 @@ function aoAprovarFerias_(controle, linha, sol) {
   const m = String(sol.situacaoOriginal || "").match(/\(([^)]+)\)/);
   const opcao = m && m[1].toUpperCase() !== "PADRÃO" && m[1].toUpperCase() !== "PADRAO" ? m[1] : "";
 
-  const titulo = "Ausência: " + nome + " [Férias" + (opcao ? " + " + opcao : "") + "]";
+  const titulo = "Ausência: " + nome + " [Férias" + (opcao ? " + " + opcao : "") + "]" +
+    (sol.substituto ? " · Substituto: " + sol.substituto : "");
   const ok = injetarEventoNoCalendarioGoogle(titulo, iso_(ini), iso_(retornoAfast || fim));
   // Férias do líder aprovadas pelo gerente: também vão para a agenda da Tribe
   let okTribe = true;
@@ -419,6 +435,8 @@ function notificarGestor_(sol, conflitos) {
       ? "<p>Olá" + (gerenteNome_() ? ", <b>" + esc_(primeiroNome_(gerenteNome_())) + "</b>" : "") + "!</p><p><b>" + esc_(sol.nome) + "</b>, líder do time <b>" + esc_(nomeSquad_()) +
         "</b>, lançou férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) + "</b> (" + sol.dias + " dias) e precisa da sua aprovação." +
         (idAgendaTribe_() ? " Ao aprovar, as férias entram na agenda do time e na agenda da Tribe." : "") + "</p>" +
+        (sol.substituto ? "<p>👤 <b>TL substituto:</b> " + esc_(sol.substituto) + "</p>" : "") +
+        (conflitosComPO_(conflitos).length ? "<p style='color:#c5221f'><b>⚠️ Coincide com as férias do PO</b> (" + conflitosComPO_(conflitos).map(c => esc_(c.nome)).join(", ") + ").</p>" : "<p style='color:#188038'>✅ Não coincide com as férias do PO.</p>") +
         (conflitos.length ? "<p>Coincidem com férias de:</p>" + tabelaConflitosHtml_(conflitos) : "")
       : "<p><b>" + esc_(sol.nome) + "</b> lançou férias de <b>" + fmt_(sol.inicio) + " a " + fmt_(sol.fim) +
         "</b> (" + sol.dias + " dias), em conflito com:</p>" + tabelaConflitosHtml_(conflitos)) +
@@ -432,6 +450,10 @@ function notificarGestor_(sol, conflitos) {
   enviarEmail_(sol.aprovador || emailGestor_(),
     lider ? "🏖️ Aprovação necessária: férias do líder " + sol.nome : "⚠️ Aprovação necessária: férias de " + sol.nome + " com conflito",
     "Aprovação de férias", corpo);
+}
+
+function conflitosComPO_(conflitos) {
+  return conflitos.filter(c => { const p = parLider_(c.nome); return p && p.papel === "PO"; });
 }
 
 function notificarSolicitante_(sol, conflitos) {
@@ -594,17 +616,18 @@ function obterAbaAprovacoes_() {
     aba.hideColumns(COL_APR.TOKEN);
   }
   if (!aba.getRange(1, COL_APR.APROVADOR).getValue()) aba.getRange(1, COL_APR.APROVADOR, 1, 2).setValues([["Aprovador", "Tipo"]]).setFontWeight("bold");
+  if (!aba.getRange(1, COL_APR.SUBSTITUTO).getValue()) aba.getRange(1, COL_APR.SUBSTITUTO).setValue("TL substituto").setFontWeight("bold");
   return aba;
 }
 
-function registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal, aprovador, tipo) {
+function registrarSolicitacao_(linha, nome, inicio, fim, conflitos, situacaoOriginal, aprovador, tipo, substituto) {
   const aba = obterAbaAprovacoes_();
   const token = Utilities.getUuid();
   const id = "FER-" + Utilities.formatDate(new Date(), tz_(), "yyyyMMdd-HHmmss") + "-" + token.slice(0, 4);
   const dias = diasEntre_(inicio, fim);
   const resumo = conflitos.map(c => c.nome + " (" + c.dias + "d)").join(", ");
-  aba.appendRow([id, new Date(), nome, inicio, fim, dias, resumo, linha, STATUS_APR.PENDENTE, "", "", "", token, situacaoOriginal, aprovador || "", tipo || "CONFLITO"]);
-  return { id: id, token: token, nome: nome, inicio: inicio, fim: fim, dias: dias, linha: linha, situacaoOriginal: situacaoOriginal, aprovador: aprovador || "", tipo: tipo || "CONFLITO" };
+  aba.appendRow([id, new Date(), nome, inicio, fim, dias, resumo, linha, STATUS_APR.PENDENTE, "", "", "", token, situacaoOriginal, aprovador || "", tipo || "CONFLITO", substituto || ""]);
+  return { id: id, token: token, nome: nome, inicio: inicio, fim: fim, dias: dias, linha: linha, situacaoOriginal: situacaoOriginal, aprovador: aprovador || "", tipo: tipo || "CONFLITO", substituto: substituto || "" };
 }
 
 function buscarSolicitacao_(id) {
@@ -622,7 +645,8 @@ function buscarSolicitacao_(id) {
         status: r[COL_APR.STATUS - 1], token: String(r[COL_APR.TOKEN - 1]),
         situacaoOriginal: String(r[COL_APR.SITUACAO_ORIGINAL - 1] || ""),
         aprovador: String(r[COL_APR.APROVADOR - 1] || "").trim().toLowerCase(),
-        tipo: String(r[COL_APR.TIPO - 1] || "CONFLITO")
+        tipo: String(r[COL_APR.TIPO - 1] || "CONFLITO"),
+        substituto: String(r[COL_APR.SUBSTITUTO - 1] || "").trim()
       };
     }
   }
@@ -656,7 +680,9 @@ function obterEmail_(nome) {
       });
     }
   }
-  return _cacheEmails[normalizar_(nome)] || "";
+  if (_cacheEmails[normalizar_(nome)]) return _cacheEmails[normalizar_(nome)];
+  const par = parLider_(nome);
+  return par && par.email ? par.email : "";
 }
 
 // Quem pode decidir uma solicitação: o aprovador gravado nela (gerente, para férias do líder) ou o gestor
@@ -756,6 +782,8 @@ const HTML_APROVACAO = [
   "<h2><?= titulo ?></h2>",
   "<p class='sub'><?= sol.id ?> · Status: <?= sol.status ?></p>",
   "<p><b><?= sol.nome ?></b>: <?= sol.inicioFmt ?> a <?= sol.fimFmt ?> (<?= sol.dias ?> dias)</p>",
+  "<? if (sol.substituto) { ?><p>👤 TL substituto: <b><?= sol.substituto ?></b></p><? } ?>",
+  "<? if (sol.lider) { ?><p style='color:<?= sol.conflitoPO ? \"#c5221f\" : \"#188038\" ?>'><?= sol.conflitoPO ? '⚠️ Coincide com as férias do PO: ' + sol.conflitoPO : '✅ Não coincide com as férias do PO.' ?></p><? } ?>",
   "<? if (conflitos.length) { ?>",
   "<table><tr><th>Em conflito com</th><th>Férias</th><th>Dias em comum</th><th>Qtd</th></tr>",
   "<? for (var i = 0; i < conflitos.length; i++) { var c = conflitos[i]; ?>",

@@ -460,6 +460,7 @@
             </div>
             <div class="field hide" id="boxDiasBH"><label id="lblDiasBH">Dias com banco de horas</label><input type="number" id="fDiasBH" min="1" value="1" oninput="atualizarPrevia()">
               <div id="infoBH" style="font-size:11px;color:var(--muted);margin-top:5px"></div></div>
+            <div class="field hide" id="boxSub"><label>TL substituto (obrigatório nas férias do líder)</label><select id="fSub" onchange="atualizarPrevia()"></select></div>
           </div>
 
           <div class="card">
@@ -512,8 +513,10 @@
                 <div class="field"><label>E-mail do gerente</label><input id="cGerEmail" placeholder="gerente@totvs.com.br"></div>
                 <div class="field"><label>ID da agenda da Tribe (opcional)</label><input id="cTribe" placeholder="...@group.calendar.google.com"></div>
               </div>
-              <div class="field"><label>PO e outros TLs (as férias do líder só conflitam com eles)</label><textarea id="cPares" rows="3" placeholder="LEANDRO HEILIG PASSOS&#10;ADRIANA ...; link da planilha de controle dela"></textarea></div>
-              <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Uma pessoa por linha. Se a pessoa não está nesta planilha, coloque <b>; link da planilha de controle dela</b> para o script ler as férias de lá (precisa ter acesso de leitura). O time não conta no conflito do líder, e o líder não conta no conflito do time.</div>
+              <div class="field"><label>PO e TLs (as férias do líder só conflitam com eles)</label>
+                <table class="membros"><thead><tr><th style="text-align:left;font-size:11px;color:var(--muted)">Nome</th><th style="text-align:left;font-size:11px;color:var(--muted)">E-mail</th><th style="text-align:left;font-size:11px;color:var(--muted)">Papel</th><th style="text-align:left;font-size:11px;color:var(--muted)">Planilha de controle (opcional)</th><th></th></tr></thead><tbody id="cPares"></tbody></table>
+                <button class="btn btn-out btn-sm" style="margin-top:8px" onclick="addPar()"><i class="fa-solid fa-plus"></i> Adicionar PO ou TL</button></div>
+              <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">O time não conta no conflito do líder, e o líder não conta no conflito do time. Nas férias do líder é obrigatório escolher um <b>TL substituto</b>, que precisa estar livre no período; a coincidência com o <b>PO</b> é destacada para o gerente. Se a pessoa não está nesta planilha, informe o link da planilha de controle dela para o script ler as férias de lá (precisa de acesso de leitura). O e-mail é usado para avisar o substituto.</div>
               <div style="font-size:11px;color:var(--muted);margin:-6px 0 10px">Quando o líder lança férias, elas <b>sempre</b> vão para o gerente aprovar (com ou sem conflito). Aprovadas, entram na agenda do time e, se informada, na agenda da Tribe. O ID fica em Google Agenda → configurações da agenda → <i>Integrar agenda</i> → ID da agenda.</div>
             </div>
             <div class="field"><label>Fotos do time: planilha do Agente A.I.F.R.E.A.D (opcional)</label>
@@ -962,7 +965,7 @@ function renderConflitos(){
 
   var pend=D.pendentes.filter(function(p){ return passa(String(p.nome).toUpperCase()); });
   document.getElementById("listaPend").innerHTML = pend.length? pend.map(function(p){
-    return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div>'+(p.tipo==="LIDER"? '<div class="dt"><i class="fa-solid fa-sitemap"></i> férias do líder · aprovação: '+esc(p.aprovador)+'</div>' : '<div class="dt">conflita com: '+esc(p.conflitos)+'</div>')+'</div>'+
+    return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div>'+(p.tipo==="LIDER"? '<div class="dt"><i class="fa-solid fa-sitemap"></i> férias do líder · aprovação: '+esc(p.aprovador)+(p.substituto?' · substituto: '+esc(curto(p.substituto)):'')+'</div>' : '<div class="dt">conflita com: '+esc(p.conflitos)+'</div>')+'</div>'+
       '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+
       (D.ehGestor? ' <button class="btn btn-sm" style="color:var(--red)" onclick="abrirCancelar(\''+esc(String(p.nome).toUpperCase())+'\',\''+p.inicio+'\')"><i class="fa-solid fa-ban"></i> Cancelar</button>' : '')+
       (D.ehGestor? ' <button class="btn btn-sm" onclick="reenviar(\''+esc(p.id)+'\',this)" title="Cancela este envio e manda de novo com a configuração atual"><i class="fa-solid fa-paper-plane"></i> Reenviar</button>' : '')+'</div></div>';
@@ -1091,6 +1094,15 @@ function sugerir(nome,ini,fim){
 function atualizarPrevia(){
   if(!D) return;
   var f=lerForm(), box=document.getElementById("checagem"), btn=document.getElementById("btnSalvar");
+  var bloq=false;
+  var ehLid=!!(D.lider && f.nome===D.lider && tipoLanc==="ferias");
+  document.getElementById("boxSub").classList.toggle("hide",!ehLid);
+  if(ehLid){
+    var sel=document.getElementById("fSub"), atualS=sel.value;
+    var tlsOp=(D.paresInfo||[]).filter(function(i){return i.papel==="TL";});
+    var htmlOp='<option value="">Selecione…</option>'+tlsOp.map(function(i){return '<option value="'+esc(i.nome)+'">'+esc(titulo(i.nome))+'</option>';}).join("");
+    if(sel.dataset.op!==htmlOp){ sel.innerHTML=htmlOp; sel.dataset.op=htmlOp; sel.value=atualS; }
+  }
   if(!f.ok){
     ["rIni","rFim","rRet","rDias"].forEach(function(id){setTxt(id,"–");}); ["rIniW","rFimW","rRetW"].forEach(function(id){setTxt(id,"");});
     box.innerHTML='<div class="status-box warn"><i class="fa-solid fa-circle-info"></i> Escolha o colaborador e a data de saída para checar conflitos.</div>';
@@ -1124,7 +1136,21 @@ function atualizarPrevia(){
     h+='<div class="status-box ok"><i class="fa-solid fa-circle-check"></i> Folga avulsa: grava e vai direto para a agenda.'+(outros.length?'<br>Também fora nesse dia: <b>'+outros.map(curto).map(esc).join(", ")+'</b>.':"")+'</div>';
     btn.textContent="Registrar folga"; btn.classList.remove("warn");
   } else if(D.lider && f.nome===D.lider){
-    h+='<div class="status-box warn"><i class="fa-solid fa-sitemap"></i> <b>Férias do líder:</b> vão para aprovação de <b>'+esc(D.gerente)+'</b> e só entram na agenda depois de aprovadas.'+(conf.length?'<br>Coincidem com PO/TLs: '+nomesUnicos(conf).map(curto).map(esc).join(", ")+'.':'<br>Sem coincidência com PO/TLs'+((D.pares||[]).length?' ('+D.pares.map(curto).map(esc).join(", ")+')':'')+'. O time não entra nessa conta.')+'</div>';
+    var info=D.paresInfo||[], papelDe=function(n){ var x=info.filter(function(i){return i.nome===n;})[0]; return x?x.papel:"TL"; };
+    var tls=info.filter(function(i){return i.papel==="TL";});
+    var sub=document.getElementById("fSub").value;
+    var po=nomesUnicos(conf.filter(function(c){return papelDe(c.nome)==="PO";}));
+    var subFora=conf.filter(function(c){return c.nome===sub;})[0];
+    var outros=nomesUnicos(conf.filter(function(c){return papelDe(c.nome)!=="PO" && c.nome!==sub;}));
+    var bloq = tls.length && (!sub || subFora);
+    h+='<div class="status-box '+(bloq?"bad":"warn")+'"><i class="fa-solid fa-sitemap"></i> <b>Férias do líder:</b> vão para aprovação de <b>'+esc(D.gerente)+'</b> e só entram na agenda depois de aprovadas.'+
+      (!info.filter(function(i){return i.papel==="PO";}).length? '<br>⚠️ Nenhum PO cadastrado em Configuração.' :
+        (po.length? '<br>🔴 <b>Coincide com as férias do PO</b> ('+po.map(curto).map(esc).join(", ")+'): o gerente vai ver esse alerta.' : '<br>✅ Não coincide com as férias do PO.'))+
+      (!tls.length? '<br>Cadastre os TLs em Configuração para escolher o substituto.' :
+        (!sub? '<br>👤 <b>Escolha o TL substituto.</b>' :
+          (subFora? '<br>⛔ <b>'+esc(curto(sub))+' estará de férias</b> de '+F(subFora.inicio)+' a '+F(subFora.fim)+'. Escolha outro substituto.' : '<br>👤 Substituto: <b>'+esc(curto(sub))+'</b>, livre no período.')))+
+      (outros.length? '<br>Outros TLs fora no período: '+outros.map(curto).map(esc).join(", ")+'.' : '')+
+      '<br><small>O time não entra nessa conta.</small></div>';
     btn.textContent="Enviar para aprovação do gerente"; btn.classList.add("warn");
   } else if(!conf.length){
     h+='<div class="status-box ok"><i class="fa-solid fa-circle-check"></i> <b>Sem conflito.</b> Ninguém do time está de férias nesse período. Grava e vai direto para a agenda.</div>';
@@ -1137,7 +1163,7 @@ function atualizarPrevia(){
     btn.textContent="Enviar para aprovação"; btn.classList.add("warn");
   }
   box.innerHTML=h;
-  btn.disabled = (tipoLanc==="folga" && !f.ben);
+  btn.disabled = (tipoLanc==="folga" && !f.ben) || !!bloq;
 }
 function usarSugestao(iso){ document.getElementById("fIni").value=iso; atualizarPrevia(); }
 
@@ -1154,7 +1180,8 @@ function salvar(){
     opcaoAfastamento: f.ben,
     quantidadeDiasBeneficio: tipoLanc==="folga"? (f.nBH||1) : 0,
     diasEmendaBH: tipoLanc==="ferias"? (f.nBH||0) : 0,
-    dataRetornoAfastamento: ISO(f.ret)
+    dataRetornoAfastamento: ISO(f.ret),
+    substituto: (D.lider && f.nome===D.lider && tipoLanc==="ferias")? document.getElementById("fSub").value : ""
   };
   google.script.run
     .withSuccessHandler(function(res){
@@ -1442,6 +1469,10 @@ var CFG=null;
 function linhaMembro(nome,email){
   return '<tr><td style="width:58%"><input class="mNome" value="'+esc(nome||"")+'" placeholder="NOME COMPLETO"></td><td><input class="mEmail" value="'+esc(email||"")+'" placeholder="e-mail"></td><td style="width:26px"><button title="Remover" onclick="this.closest(\'tr\').remove()"><i class="fa-solid fa-xmark"></i></button></td></tr>';
 }
+function addPar(x){
+  x=x||{nome:"",email:"",papel:"TL",planilha:""};
+  document.getElementById("cPares").insertAdjacentHTML("beforeend",'<tr><td style="width:30%"><input class="pNome" value="'+esc(x.nome||"")+'" placeholder="NOME COMPLETO"></td><td style="width:26%"><input class="pEmail" value="'+esc(x.email||"")+'" placeholder="e-mail"></td><td style="width:72px"><select class="pPapel" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:inherit"><option'+(x.papel==="TL"?" selected":"")+'>TL</option><option'+(x.papel==="PO"?" selected":"")+'>PO</option></select></td><td><input class="pPlan" value="'+esc(x.planilha||"")+'" placeholder="link ou ID"></td><td style="width:26px"><button title="Remover" onclick="this.closest(\'tr\').remove()"><i class="fa-solid fa-xmark"></i></button></td></tr>');
+}
 function addMembro(n,e){ document.getElementById("cMembros").insertAdjacentHTML("beforeend",linhaMembro(n,e)); }
 function colarMembros(){ document.getElementById("boxColar").classList.toggle("hide"); }
 function puxarPessoasRh(){
@@ -1476,7 +1507,7 @@ function carregarConfig(){
     document.getElementById("cFotos").value=c.idFotos||"";
     var selL=document.getElementById("cLider");
     selL.innerHTML='<option value="">Ninguém (sem aprovação do gerente)</option>'+(c.time||[]).map(function(n){ n=String(n).toUpperCase(); return '<option value="'+esc(n)+'">'+esc(titulo(n))+'</option>'; }).join("");
-    selL.value=c.liderNome||""; document.getElementById("cGerNome").value=c.gerenteNome||""; document.getElementById("cGerEmail").value=c.gerenteEmail||""; document.getElementById("cTribe").value=c.idAgendaTribe||""; document.getElementById("cPares").value=c.paresLider||"";
+    selL.value=c.liderNome||""; document.getElementById("cGerNome").value=c.gerenteNome||""; document.getElementById("cGerEmail").value=c.gerenteEmail||""; document.getElementById("cTribe").value=c.idAgendaTribe||""; document.getElementById("cPares").innerHTML=""; (c.paresLista||[]).forEach(function(x){ addPar(x); });
     if(!c.urlWebApp && c.urlWebAppAuto) document.getElementById("cWebAppInfo").textContent="Detectado automaticamente: "+c.urlWebAppAuto+" — cole aqui para fixar.";
     document.getElementById("cWebhookInfo").textContent = c.temWebhook? "Já existe um webhook salvo. Deixe em branco para manter ou cole outro para trocar." : "Sem webhook: o aviso diário vai só por e-mail.";
     var sel=document.getElementById("cAgenda");
@@ -1511,7 +1542,7 @@ function salvarConfig(){
     idAgenda:document.getElementById("cAgenda").value, emailsAviso:document.getElementById("cAviso").value,
     webhook: wh || null, urlWebApp: document.getElementById("cWebApp").value, membros:membros,
     liderNome: document.getElementById("cLider").value, gerenteNome: document.getElementById("cGerNome").value,
-    gerenteEmail: document.getElementById("cGerEmail").value, idAgendaTribe: document.getElementById("cTribe").value, paresLider: document.getElementById("cPares").value,
+    gerenteEmail: document.getElementById("cGerEmail").value, idAgendaTribe: document.getElementById("cTribe").value, paresLista: Array.prototype.map.call(document.querySelectorAll("#cPares tr"),function(tr){ return {nome:tr.querySelector(".pNome").value,email:tr.querySelector(".pEmail").value,papel:tr.querySelector(".pPapel").value,planilha:tr.querySelector(".pPlan").value}; }),
     limparDados:document.getElementById("cLimpar").checked, confirmacao:document.getElementById("cConf").value
   };
   var b=document.getElementById("cSalvar"), html=b.innerHTML;

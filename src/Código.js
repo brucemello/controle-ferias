@@ -662,6 +662,20 @@ function salvarSugestaoDev(dados) {
       return "Sucesso! Benefício acoplado e agenda updated.";
     } 
     
+    // Férias do líder: TL substituto obrigatório e livre no período
+    var substitutoLider = "";
+    if (ehLider_(dados.nome)) {
+      var tls = paresLider_().filter(function(p) { return p.papel === "TL"; });
+      if (tls.length) {
+        substitutoLider = String(dados.substituto || "").trim().toUpperCase();
+        if (!substitutoLider) throw new Error("Escolha o TL substituto.");
+        if (!ehParLider_(substitutoLider)) throw new Error("O substituto precisa estar na lista de TLs da Configuração.");
+        var choqueSub = encontrarConflitos_(dados.nome, parseData_(dados.dataInicio), parseData_(dados.dataFim),
+          listarPeriodosAtivos_(sheetFerias, -1)).filter(function(c) { return normalizar_(c.nome) === normalizar_(substitutoLider); });
+        if (choqueSub.length) throw new Error(substitutoLider + " também estará de férias nesse período (" + fmt_(choqueSub[0].inicioDele) + " a " + fmt_(choqueSub[0].fimDele) + "). Escolha outro TL substituto.");
+      }
+    }
+
     // CENÁRIO B: NOVA INCLUSÃO MANUAL PELO FORMULÁRIO (Configura coluna como "Sugestão")
     var situacaoLabel = opcao ? "Sugestão do Dev (" + opcao + ")" : "Sugestão do Dev (Padrão)";
     var novaLinhaFerias = [
@@ -691,7 +705,7 @@ function salvarSugestaoDev(dados) {
     
     // CHECAGEM DE CONFLITO: se houver sobreposição, vai para aprovação do gestor
     // e só é espelhado no Calendar depois de aprovado
-    var resultadoConflito = processarLancamentoFerias(linhaNova);
+    var resultadoConflito = processarLancamentoFerias(linhaNova, { substituto: substitutoLider });
     var diasEmenda = opcao.indexOf("BANCO") !== -1 ? (parseInt(dados.diasEmendaBH, 10) || 0) : 0;
     if (resultadoConflito.status === "pendente") {
       return resultadoConflito.mensagem + (diasEmenda ? " A emenda de " + diasEmenda + " dia(s) com banco de horas não foi lançada: lance como folga avulsa depois da aprovação." : "");

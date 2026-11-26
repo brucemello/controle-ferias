@@ -21,7 +21,7 @@ const PADRAO_ORIGINAL = {
   LIDER_NOME: "BRUCE EGNOR MAGALHAES DE MELLO",
   GERENTE_NOME: "ROBSON ALVES BEZERRA",
   GERENTE_EMAIL: "robson.bezerra@totvs.com.br",
-  PARES_LIDER: "LEANDRO HEILIG PASSOS"
+  PARES_LIDER: "LEANDRO HEILIG PASSOS; ; PO"
 };
 
 const CHAVES_CONFIG = ["NOME_SQUAD", "EMAIL_GESTOR", "ID_AGENDA", "EMAILS_AVISO", "WEBHOOK_CHAT"];
@@ -53,16 +53,23 @@ function gerenteNome_() { return String(cfg_("GERENTE_NOME") || "").trim(); }
 function gerenteEmail_() { return String(cfg_("GERENTE_EMAIL") || "").trim().toLowerCase(); }
 function idAgendaTribe_() { return String(cfg_("ID_AGENDA_TRIBE") || "").trim(); }
 // PO e outros TLs: as férias do líder só conflitam com eles (não com o time).
-// Uma pessoa por linha: "NOME" ou "NOME; ID ou link da planilha de controle dela".
+// Uma pessoa por linha: "NOME; e-mail; PO ou TL; ID/link da planilha de controle" (só o nome é obrigatório).
 function paresLider_() {
   return String(cfg_("PARES_LIDER") || "").split(/\r?\n/).map(l => {
-    const [nome, plan] = l.split(";");
-    const n = String(nome || "").trim().toUpperCase();
+    const partes = l.split(";").map(x => String(x || "").trim());
+    const n = partes.shift().toUpperCase();
     if (!n) return null;
-    const m = String(plan || "").match(/[-\w]{25,}/);
-    return { nome: n, planilha: m ? m[0] : "" };
+    const p = { nome: n, email: "", papel: "TL", planilha: "" };
+    partes.forEach(x => {
+      if (!x) return;
+      if (/^[^@\s]+@[^@\s]+$/.test(x)) p.email = x.toLowerCase();
+      else if (/^(PO|TL)$/i.test(x)) p.papel = x.toUpperCase();
+      else { const m = x.match(/[-\w]{25,}/); if (m) p.planilha = m[0]; }
+    });
+    return p;
   }).filter(Boolean);
 }
+function parLider_(nome) { const n = normalizar_(nome); return paresLider_().filter(p => normalizar_(p.nome) === n)[0] || null; }
 function ehNomeLider_(nome) { return !!liderNome_() && normalizar_(nome) === normalizar_(liderNome_()); }
 function ehParLider_(nome) { const n = normalizar_(nome); return paresLider_().some(p => normalizar_(p.nome) === n); }
 // Regra de conflito: líder × (PO/TLs) apenas; líder não entra no conflito dos devs.
@@ -139,6 +146,7 @@ function obterConfiguracaoTime() {
     urlWebApp: PropertiesService.getScriptProperties().getProperty("URL_WEBAPP") || "",
     liderNome: liderNome_(), gerenteNome: gerenteNome_(), gerenteEmail: gerenteEmail_(), idAgendaTribe: idAgendaTribe_(),
     paresLider: String(cfg_("PARES_LIDER") || "").trim(),
+    paresLista: paresLider_(),
     idFotos: (function() { try { return idPlanilhaFotos_(); } catch (e) { return ""; } })(),
     urlWebAppAuto: (function() { try { const s = ScriptApp.getService(); return s.isEnabled() ? (s.getUrl() || "") : ""; } catch (e) { return ""; } })(),
     temWebhook: !!webhookChat_(),
@@ -199,7 +207,13 @@ function salvarConfiguracaoTime(dados) {
     if (ge && ge === emailGestor) throw new Error("O e-mail do gerente não pode ser o mesmo do gestor do time: informe o e-mail de quem aprova as férias do líder.");
     const pares = { LIDER_NOME: String(dados.liderNome || "").trim().toUpperCase(), GERENTE_NOME: String(dados.gerenteNome || "").trim(),
       GERENTE_EMAIL: ge, ID_AGENDA_TRIBE: String(dados.idAgendaTribe || "").trim(),
-      PARES_LIDER: String(dados.paresLider || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean).join("\n") };
+      PARES_LIDER: (Array.isArray(dados.paresLista)
+        ? dados.paresLista.filter(p => p && String(p.nome || "").trim()).map(p => {
+            const em = String(p.email || "").trim().toLowerCase();
+            if (em && !/^[^@\s]+@[^@\s]+$/.test(em)) throw new Error("E-mail inválido para " + p.nome + ".");
+            return [String(p.nome).trim().toUpperCase(), em, String(p.papel || "TL").toUpperCase() === "PO" ? "PO" : "TL", String(p.planilha || "").trim()].join("; ");
+          })
+        : String(dados.paresLider || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean)).join("\n") };
     Object.keys(pares).forEach(k => { if (pares[k]) props.setProperty(k, pares[k]); else props.setProperty(k, " "); });
   }
   if (typeof dados.urlWebApp === "string") {

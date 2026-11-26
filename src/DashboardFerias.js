@@ -138,7 +138,7 @@ function obterDadosDashboard() {
     let eu = "";
     try { eu = String(Session.getActiveUser().getEmail()).toLowerCase(); } catch (e) {}
     const urlBase = urlWebApp_();
-    abaApr.getRange(2, 1, abaApr.getLastRow() - 1, COL_APR.TIPO).getValues().forEach(r => {
+    abaApr.getRange(2, 1, abaApr.getLastRow() - 1, COL_APR.SUBSTITUTO).getValues().forEach(r => {
       if (r[COL_APR.STATUS - 1] !== STATUS_APR.PENDENTE) return;
       const aprovador = String(r[COL_APR.APROVADOR - 1] || emailLider_()).toLowerCase();
       const url = eu && eu === aprovador ? urlBase : "";
@@ -146,7 +146,7 @@ function obterDadosDashboard() {
         id: String(r[0]), nome: String(r[2]),
         inicio: iso_(parseData_(r[3])), fim: iso_(parseData_(r[4])),
         conflitos: String(r[6] || ""),
-        tipo: String(r[COL_APR.TIPO - 1] || "CONFLITO"), aprovador: aprovador,
+        tipo: String(r[COL_APR.TIPO - 1] || "CONFLITO"), aprovador: aprovador, substituto: String(r[COL_APR.SUBSTITUTO - 1] || ""),
         link: url ? url + "?id=" + encodeURIComponent(String(r[0])) + "&t=" + String(r[COL_APR.TOKEN - 1]) : ""
       });
     });
@@ -170,6 +170,7 @@ function obterDadosDashboard() {
     nomeSquad: nomeSquad_(),
     liderNome: liderNome_(),
     pares: paresLider_().map(p => p.nome),
+    paresInfo: paresLider_().map(p => ({ nome: p.nome, papel: p.papel, temEmail: !!p.email })),
     paresPeriodos: externos.map(p => ({ nome: p.nome, inicio: iso_(p.inicio), fim: iso_(p.fim) })),
     lider: ehLider_(liderNome_()) ? liderNome_() : "", gerente: gerenteNome_() || gerenteEmail_(),
     configurado: timeConfigurado_(),

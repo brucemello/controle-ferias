@@ -40,15 +40,18 @@ function cancelarFerias(linha, inicioIso, fimIso, motivo) {
     const quando = Utilities.formatDate(new Date(), tz_(), "dd/MM/yyyy");
 
     // Solicitação pendente na aba Aprovações
-    let aprovadorPendente = "";
+    let aprovadorPendente = "", substituto = "";
     const abaApr = planilha_().getSheetByName(CONFIG_APROVACAO.abaAprovacoes);
     if (abaApr && abaApr.getLastRow() > 1) {
-      const dados = abaApr.getRange(2, 1, abaApr.getLastRow() - 1, COL_APR.TIPO).getValues();
-      dados.forEach((r, i) => {
-        if (r[COL_APR.STATUS - 1] !== STATUS_APR.PENDENTE) return;
+      const dadosApr = abaApr.getRange(2, 1, abaApr.getLastRow() - 1, COL_APR.SUBSTITUTO).getValues();
+      dadosApr.forEach((r, i) => {
         const ri = parseData_(r[COL_APR.INICIO - 1]), rf = parseData_(r[COL_APR.FIM - 1]);
         if (normalizar_(r[COL_APR.NOME - 1]) !== normalizar_(nome) || !ri || !rf ||
             ri.getTime() !== ini.getTime() || rf.getTime() !== fim.getTime()) return;
+        const st = r[COL_APR.STATUS - 1];
+        if (st === STATUS_APR.APROVADO || st === STATUS_APR.PENDENTE) substituto = String(r[COL_APR.SUBSTITUTO - 1] || "").trim() || substituto;
+        if (st === STATUS_APR.APROVADO) abaApr.getRange(i + 2, COL_APR.COMENTARIO).setValue(String(r[COL_APR.COMENTARIO - 1] || "") + " | Cancelada depois em " + quando + ": " + motivo);
+        if (st !== STATUS_APR.PENDENTE) return;
         abaApr.getRange(i + 2, COL_APR.STATUS, 1, 4).setValues([["Cancelada", quem, new Date(), "Cancelada: " + motivo]]);
         aprovadorPendente = String(r[COL_APR.APROVADOR - 1] || emailGestor_()).toLowerCase();
       });
@@ -72,18 +75,38 @@ function cancelarFerias(linha, inicioIso, fimIso, motivo) {
       "<p><b>Motivo:</b> " + esc_(motivo) + "</p>" +
       (estavaNoRH ? "<p>Essas férias estavam marcadas no sistema do RH: o cancelamento também precisa ser feito lá.</p>" : "") +
       "<p style='color:#5f6368;font-size:12px'>Cancelado por " + esc_(quem) + " em " + quando + ".</p>";
-    const emailPessoa = obterEmail_(nome);
-    if (emailPessoa && emailPessoa.toLowerCase() !== String(quem).toLowerCase()) {
-      enviarEmail_(emailPessoa, "🗓️ Férias canceladas: " + periodo, "Férias canceladas", corpo);
-    }
-    if (aprovadorPendente && aprovadorPendente !== String(quem).toLowerCase()) {
+    const eu = String(quem).toLowerCase();
+    const avisados = [];
+    // A própria pessoa sempre recebe (mesmo quando foi ela quem cancelou: fica como comprovante)
+    const emailPessoa = obterEmail_(nome) || (ehNomeLider_(nome) ? emailGestor_() : "");
+    if (emailPessoa) { enviarEmail_(emailPessoa, "🗓️ Férias canceladas: " + periodo, "Férias canceladas", corpo); avisados.push(emailPessoa.toLowerCase()); }
+    // Aprovador da solicitação pendente
+    if (aprovadorPendente && avisados.indexOf(aprovadorPendente) === -1 && aprovadorPendente !== eu) {
       enviarEmail_(aprovadorPendente, "🗓️ Solicitação de férias cancelada: " + nome, "Solicitação cancelada",
         "<p>Não é mais preciso decidir esta solicitação.</p>" + corpo);
+      avisados.push(aprovadorPendente);
+    }
+    // Férias do líder: o gerente sempre fica sabendo (mesmo já aprovadas) e o TL substituto também
+    if (ehNomeLider_(nome)) {
+      const ger = gerenteEmail_();
+      if (ger && avisados.indexOf(ger) === -1 && ger !== eu) {
+        enviarEmail_(ger, "🗓️ Férias do líder canceladas: " + nome + " (" + periodo + ")", "Férias do líder canceladas", corpo);
+        avisados.push(ger);
+      }
+      if (substituto) {
+        const par = parLider_(substituto);
+        const emSub = String((par && par.email) || obterEmail_(substituto) || "").toLowerCase();
+        if (emSub && avisados.indexOf(emSub) === -1) {
+          enviarEmail_(emSub, "🗓️ Substituição cancelada: férias de " + nome + " (" + periodo + ")", "Substituição cancelada",
+            "<p>Você não precisa mais cobrir o período abaixo.</p>" + corpo);
+          avisados.push(emSub);
+        }
+      }
     }
 
     return "Férias de " + nome + " (" + periodo + ") canceladas" +
       (estavaNaAgenda ? " e retiradas da agenda" : "") + "." +
-      (emailPessoa ? " Aviso enviado por e-mail." : "") +
+      (avisados.length ? " E-mail enviado para: " + avisados.join(", ") + "." : " Ninguém com e-mail cadastrado para avisar.") +
       (estavaNoRH ? " ⚠️ Estavam marcadas no RH: cancele também no sistema do RH." : "");
   } finally {
     lock.releaseLock();
