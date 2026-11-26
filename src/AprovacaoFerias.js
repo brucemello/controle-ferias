@@ -23,7 +23,7 @@ const CONFIG_APROVACAO = {
   abaContatos: "Contatos",
   abaAprovacoes: "Aprovações",
   // Situações que NÃO entram na checagem de conflito (sem acento, maiúsculas)
-  situacoesIgnoradas: ["FINALIZADA", "PAGA", "REPROVADO", "AJUSTE SOLICITADO", "INCENTIVADAS"],
+  situacoesIgnoradas: ["FINALIZADA", "PAGA", "REPROVADO", "AJUSTE SOLICITADO", "INCENTIVADAS", "CANCELAD"],
   janelaBuscaSugestaoDias: 180
 };
 

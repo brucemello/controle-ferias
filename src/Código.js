@@ -373,7 +373,7 @@ function consultarSaldosColaborador(nomePesquisa) {
       for (var i = 0; i < regFerias.length; i++) {
         if (regFerias[i][1] && normalizar_(regFerias[i][1]) === nomeColab) {
           var sit = normalizar_(regFerias[i][4]);
-          if (sit.indexOf("REPROVADO") === 0 || sit.indexOf("AJUSTE") === 0) continue;
+          if (sit.indexOf("REPROVADO") === 0 || sit.indexOf("AJUSTE") === 0 || sit.indexOf("CANCELAD") === 0) continue;
           if (!doAno(regFerias[i][9])) continue;
           if (sit.indexOf("RESET") !== -1) { resultado.resetUsado = 1; resultado.resetUsadoEm = iso_(parseData_(regFerias[i][9])); }
           if (sit.indexOf("GIFT") !== -1) resultado.giftUsado += 1;
@@ -814,6 +814,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
       }
       if (achou >= 0) {
         var linha = achou + 2, rowD = dest[achou];
+        if (normalizar_(rowD[4]).indexOf("CANCELAD") === 0) { cont.iguais++; continue; } // cancelada aqui: não volta
         var fimAtual = parseData_(rowD[10]);
         var mudou = false;
         if (normalizar_(rowD[8]) !== "AGENDADOS") {
@@ -841,6 +842,7 @@ function importarDadosPorIdPlanilha(idOrigem) {
       for (var k = 0; k < dest.length; k++) {
         var rk = dest[k];
         if (String(rk[1]).trim().toUpperCase() !== nome) continue;
+        if (normalizar_(rk[4]).indexOf("CANCELAD") === 0) continue;
         if (normalizar_(rk[8]).indexOf("SUGEST") !== 0 && normalizar_(rk[4]).indexOf("SUGEST") === -1) continue;
         var ki = parseData_(rk[9]), kf = parseData_(rk[10]);
         if (ki && kf && sobreposicao_(ki, kf, dIni, dFim)) { sug = k; break; }
@@ -1007,7 +1009,7 @@ function atualizarAbaControleConflitos(enviarEmail) {
       
       // Ignora datas passadas ou ausências finalizadas/pagas
       if (dFimMs < hojeMs || situacaoUpper.includes("FINALIZADA") || situacaoUpper.includes("PAGA") ||
-          situacaoUpper.indexOf("REPROVADO") === 0 || situacaoUpper.indexOf("AJUSTE SOLICITADO") === 0 ||
+          situacaoUpper.indexOf("REPROVADO") === 0 || situacaoUpper.indexOf("AJUSTE SOLICITADO") === 0 || situacaoUpper.indexOf("CANCELAD") === 0 ||
           situacaoUpper.indexOf("INCENTIVADAS") !== -1) {
         continue;
       }

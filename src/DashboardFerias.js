@@ -55,7 +55,7 @@ function obterDadosDashboard() {
 
       const situacao = String(r[4] || "").trim();
       const sitNorm = normalizar_(situacao);
-      if (sitNorm.indexOf("REPROVADO") === 0 || sitNorm.indexOf("AJUSTE SOLICITADO") === 0) return;
+      if (sitNorm.indexOf("REPROVADO") === 0 || sitNorm.indexOf("AJUSTE SOLICITADO") === 0 || sitNorm.indexOf("CANCELAD") === 0) return;
 
       const chave = nome + "|" + ini.getTime() + "|" + fim.getTime();
       if (vistos[chave]) return;

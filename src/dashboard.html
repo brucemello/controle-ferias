@@ -289,6 +289,12 @@
   .step-b kbd{background:#eef0f4;border-radius:4px;padding:1px 5px;font-family:inherit;font-size:11.5px;font-weight:700;color:var(--ink)}
   .acoes{display:flex;gap:8px;flex-wrap:wrap}
   .acoes .btn{padding:8px 13px;font-size:12px;width:auto}
+  .mcanc{position:fixed;inset:0;background:rgba(16,24,40,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+  .mcanc .box{background:#fff;border-radius:14px;box-shadow:var(--shadow);width:100%;max-width:460px;padding:20px}
+  .mcanc h3{margin:0 0 4px;font-size:16px}
+  .mcanc label.op{display:flex;gap:8px;align-items:center;padding:9px 10px;border:1px solid var(--line);border-radius:10px;margin-top:8px;cursor:pointer}
+  .mcanc textarea{width:100%;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:13px;resize:vertical}
+  .bcanc{border:0;background:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 4px}
   .btn-out{background:#fff;border:1px solid var(--line);color:var(--ink)}
   .tag-op{font-size:10px;font-weight:700;color:var(--muted);background:#eef0f4;border-radius:99px;padding:2px 8px;margin-left:6px;vertical-align:middle}
   .bf-chip{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:3px 4px 3px 9px;font-size:11px;font-weight:700;margin:2px 4px 2px 0;border:1px solid var(--line);background:#fff;cursor:pointer;white-space:nowrap}
@@ -885,6 +891,7 @@ function renderEquipe(){
     } else { ordem=2; sit='<span class="pill p-gray">Trabalhando</span>'; }
     var prox=futuras.length? FC(futuras[0].inicio)+" → "+F(futuras[0].fim)+' <span style="color:var(--muted)">('+futuras[0].dias+'d)</span>'+(futuras[0].pendente?' <span class="pill p-purple">Pendente</span>':"") : '<span style="color:var(--muted)">sem férias lançadas</span>';
     var ult=passadas.length? F(passadas[0].retorno) : "–";
+    if(D.ehGestor && (atual||futuras.length)) prox+=' <button class="bcanc" title="Cancelar férias" onclick="abrirCancelar(\''+esc(n)+'\')"><i class="fa-solid fa-ban"></i></button>';
     return {ordem:ordem, ref: atual? P(atual.fim) : futuras.length? P(futuras[0].inicio) : addD(HOJE,9999), html:'<tr><td><div class="nmcell">'+avatar(n)+esc(titulo(n))+'</div></td><td class="nw">'+sit+'</td><td class="nw">'+periodo+'</td><td>'+dias+'</td><td class="nw">'+rest+'</td><td class="nw">'+prox+'</td><td class="nw">'+ult+'</td></tr>'};
   }).sort(function(a,b){ return a.ordem-b.ordem || a.ref-b.ref; });
   document.getElementById("tbEquipe").innerHTML=linhas.map(function(l){return l.html;}).join("") || '<tr><td colspan="7">'+vazio("fa-users","Ninguém encontrado.")+'</td></tr>';
@@ -957,6 +964,7 @@ function renderConflitos(){
   document.getElementById("listaPend").innerHTML = pend.length? pend.map(function(p){
     return '<div class="person">'+avatar(String(p.nome).toUpperCase())+'<div><div class="nm">'+esc(curto(p.nome))+'</div><div class="dt">'+FC(p.inicio)+' → '+F(p.fim)+'</div>'+(p.tipo==="LIDER"? '<div class="dt"><i class="fa-solid fa-sitemap"></i> férias do líder · aprovação: '+esc(p.aprovador)+'</div>' : '<div class="dt">conflita com: '+esc(p.conflitos)+'</div>')+'</div>'+
       '<div class="right">'+(p.link? '<a class="btn btn-sm" style="color:var(--purple);text-decoration:none;display:inline-block" target="_blank" href="'+esc(p.link)+'">Analisar e decidir</a>' : '<span class="pill p-purple">'+esc(p.id.slice(4,12))+'</span>')+
+      (D.ehGestor? ' <button class="btn btn-sm" style="color:var(--red)" onclick="abrirCancelar(\''+esc(String(p.nome).toUpperCase())+'\',\''+p.inicio+'\')"><i class="fa-solid fa-ban"></i> Cancelar</button>' : '')+
       (D.ehGestor? ' <button class="btn btn-sm" onclick="reenviar(\''+esc(p.id)+'\',this)" title="Cancela este envio e manda de novo com a configuração atual"><i class="fa-solid fa-paper-plane"></i> Reenviar</button>' : '')+'</div></div>';
   }).join("")+'<div style="font-size:11px;color:var(--muted);margin-top:10px"><i class="fa-regular fa-envelope"></i> A decisão é feita pelo botão “Analisar e decidir” no e-mail de cada solicitação.</div>' : vazio("fa-inbox","Nenhum lançamento aguardando aprovação.");
 }
@@ -972,6 +980,37 @@ function alertaTopo(t,tipo){
   var el=document.getElementById("listaPend"); if(!el) return;
   var d=document.createElement("div"); d.className="status-box "+(tipo==="err"?"bad":tipo); d.style.marginBottom="10px"; d.textContent=t;
   el.parentNode.insertBefore(d,el); setTimeout(function(){ if(d.parentNode) d.parentNode.removeChild(d); },12000);
+}
+
+// ---------- cancelamento ----------
+var CANC=null;
+function abrirCancelar(nome,inicio){
+  var ops=D.periodos.filter(function(p){return p.nome===nome && p.tipo==="ferias" && P(p.fim)>=HOJE;})
+    .sort(function(a,b){return P(a.inicio)-P(b.inicio);});
+  if(!ops.length) return;
+  CANC={ops:ops};
+  setTxt("mcNome", titulo(nome)+" · escolha qual lançamento cancelar");
+  document.getElementById("mcOps").innerHTML=ops.map(function(p,i){
+    var marcado = inicio? p.inicio===inicio : i===0;
+    return '<label class="op"><input type="radio" name="mcOp" value="'+i+'"'+(marcado?" checked":"")+'> <span><b>'+F(p.inicio)+' a '+F(p.fim)+'</b> · '+p.dias+' dias<br><small style="color:var(--muted)">'+esc(p.situacao)+(p.pendente?' · aguardando aprovação':'')+'</small></span></label>';
+  }).join("");
+  document.getElementById("mcMotivo").value="";
+  document.getElementById("mcMsg").className="msg";
+  var b=document.getElementById("mcBtn"); b.disabled=false; b.textContent="Cancelar férias";
+  document.getElementById("mCanc").classList.remove("hide");
+}
+function fecharCancelar(){ document.getElementById("mCanc").classList.add("hide"); CANC=null; }
+function confirmarCancelar(){
+  var r=document.querySelector('input[name="mcOp"]:checked'), msg=document.getElementById("mcMsg"), b=document.getElementById("mcBtn");
+  var motivo=document.getElementById("mcMotivo").value.trim();
+  if(!r){ msg.className="msg show err"; msg.textContent="Escolha o lançamento."; return; }
+  if(!motivo){ msg.className="msg show err"; msg.textContent="Informe o motivo."; return; }
+  var p=CANC.ops[+r.value];
+  b.disabled=true; b.textContent="Cancelando…";
+  google.script.run
+    .withSuccessHandler(function(res){ msg.className="msg show "+(String(res).indexOf("⚠️")!==-1?"warn":"ok"); msg.textContent="✔️ "+res; b.textContent="Cancelado"; carregar(); setTimeout(fecharCancelar,6000); })
+    .withFailureHandler(function(e){ msg.className="msg show err"; msg.textContent="❌ "+e.message; b.disabled=false; b.textContent="Cancelar férias"; })
+    .cancelarFerias(p.linha,p.inicio,p.fim,motivo);
 }
 
 // ---------- lançamento ----------
@@ -1550,5 +1589,16 @@ function alternarAuto(){
 
 carregar();
 </script>
+<div id="mCanc" class="mcanc hide"><div class="box">
+  <h3><i class="fa-solid fa-ban" style="color:var(--red)"></i> Cancelar férias</h3>
+  <div id="mcNome" style="color:var(--muted);font-size:12px"></div>
+  <div id="mcOps"></div>
+  <textarea id="mcMotivo" rows="3" placeholder="Motivo do cancelamento (vai no e-mail para a pessoa)"></textarea>
+  <div id="mcMsg" class="msg"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+    <button class="btn btn-out" onclick="fecharCancelar()">Voltar</button>
+    <button id="mcBtn" class="btn" style="background:var(--red);color:#fff" onclick="confirmarCancelar()">Cancelar férias</button>
+  </div>
+</div></div>
 </body>
 </html>

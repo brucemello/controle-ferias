@@ -35,7 +35,7 @@ function notificarProximasFerias() {
     const saldo = dados[i][11];               // Coluna L: Saldo
 
     // Não anuncia férias pendentes de aprovação, reprovadas ou em ajuste
-    if (/PENDENTE|REPROVADO|AJUSTE SOLICITADO/i.test(String(situacao))) continue;
+    if (/PENDENTE|REPROVADO|AJUSTE SOLICITADO|CANCELAD/i.test(String(situacao))) continue;
     // Só quem é do time (aba TIME)
     if (doTime && !doTime[normalizar_(colaborador)]) continue;
 
