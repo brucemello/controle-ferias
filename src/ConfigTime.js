@@ -26,16 +26,29 @@ const PADRAO_ORIGINAL = {
 
 const CHAVES_CONFIG = ["NOME_SQUAD", "EMAIL_GESTOR", "ID_AGENDA", "EMAILS_AVISO", "WEBHOOK_CHAT"];
 
+// Cache por execução: evita centenas de leituras do PropertiesService nos laços de conflito
+var _CFG = null, _ORIGINAL = null, _PARES = null, _PARES_EXT = null;
+function limparCacheCfg_() { _CFG = null; _ORIGINAL = null; _PARES = null; _PARES_EXT = null; }
+function propsCache_() {
+  if (!_CFG) _CFG = PropertiesService.getScriptProperties().getProperties();
+  return _CFG;
+}
+
 function ehPlanilhaOriginal_() {
+  if (_ORIGINAL !== null) return _ORIGINAL;
+  _ORIGINAL = ehPlanilhaOriginalSemCache_();
+  return _ORIGINAL;
+}
+function ehPlanilhaOriginalSemCache_() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     if (ss) return ss.getId() === ID_PLANILHA_ORIGINAL;
   } catch (e) {}
-  return PropertiesService.getScriptProperties().getProperty("ID_PLANILHA") === ID_PLANILHA_ORIGINAL;
+  return propsCache_()["ID_PLANILHA"] === ID_PLANILHA_ORIGINAL;
 }
 
 function cfg_(chave) {
-  const v = PropertiesService.getScriptProperties().getProperty(chave);
+  const v = propsCache_().hasOwnProperty(chave) ? propsCache_()[chave] : null;
   if (v === " ") return "";               // apagado de propósito na Configuração
   if (v !== null && v !== "") return v;
   return ehPlanilhaOriginal_() ? (PADRAO_ORIGINAL[chave] || "") : "";
@@ -55,7 +68,8 @@ function idAgendaTribe_() { return String(cfg_("ID_AGENDA_TRIBE") || "").trim();
 // PO e outros TLs: as férias do líder só conflitam com eles (não com o time).
 // Uma pessoa por linha: "NOME; e-mail; PO ou TL; ID/link da planilha de controle" (só o nome é obrigatório).
 function paresLider_() {
-  return String(cfg_("PARES_LIDER") || "").split(/\r?\n/).map(l => {
+  if (_PARES) return _PARES;
+  _PARES = String(cfg_("PARES_LIDER") || "").split(/\r?\n/).map(l => {
     const partes = l.split(";").map(x => String(x || "").trim());
     const n = partes.shift().toUpperCase();
     if (!n) return null;
@@ -68,6 +82,7 @@ function paresLider_() {
     });
     return p;
   }).filter(Boolean);
+  return _PARES;
 }
 function parLider_(nome) { const n = normalizar_(nome); return paresLider_().filter(p => normalizar_(p.nome) === n)[0] || null; }
 function ehNomeLider_(nome) { return !!liderNome_() && normalizar_(nome) === normalizar_(liderNome_()); }
@@ -81,6 +96,11 @@ function conflitoRelevante_(a, b) {
 }
 // Férias do PO/TLs lidas das planilhas de controle deles (cache por 10 min)
 function periodosExternosPares_() {
+  if (_PARES_EXT) return _PARES_EXT;
+  _PARES_EXT = periodosExternosParesSemMemo_();
+  return _PARES_EXT;
+}
+function periodosExternosParesSemMemo_() {
   const pares = paresLider_().filter(p => p.planilha);
   if (!pares.length) return [];
   const cache = CacheService.getScriptCache();
@@ -224,6 +244,7 @@ function salvarConfiguracaoTime(dados) {
   }
   if (dados.webhook === "") props.deleteProperty("WEBHOOK_CHAT");
   else if (dados.webhook) props.setProperty("WEBHOOK_CHAT", String(dados.webhook).trim());
+  limparCacheCfg_();
 
   // Time e contatos
   if (Array.isArray(dados.membros)) gravarMembros_(ss, dados.membros);
@@ -240,6 +261,7 @@ function transformarEmModelo(confirmacao) {
   limparDadosTime_(ss);
   ScriptApp.getProjectTriggers().forEach(t => ScriptApp.deleteTrigger(t));
   PropertiesService.getScriptProperties().deleteAllProperties();
+  limparCacheCfg_();
   return "Pronto: esta planilha virou um modelo em branco. Quem fizer uma cópia dela começa do zero.";
 }
 

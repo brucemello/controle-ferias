@@ -77,6 +77,7 @@ function importarRhDashboard(idRH, modo) {
     idRH = String(idRH || "").trim();
     if (!idRH) throw new Error("Informe o ID da planilha do RH.");
     props.setProperty("ID_PLANILHA_RH", idRH);
+    limparCacheCfg_();
   }
   const origem = idRhParaImportar_();
   props.setProperty("RH_ULTIMO_ID", origem.id);
