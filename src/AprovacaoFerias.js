@@ -224,7 +224,7 @@ function registrarDecisao(id, token, acao, comentario, novoInicioIso, novoFimIso
       if (acao === "APROVAR") {
         controle.getRange(linha, COL_CTRL.SITUACAO).setValue(sol.situacaoOriginal || "Sugestão do Dev (Padrão)");
         controle.getRange(linha, 1, 1, 17).setBackground("#fffde7");
-        aoAprovarFerias_(controle, linha, sol);
+        controle.getRange(linha, COL_CTRL.STATUS).setValue("Aprovado: enviando para a agenda…");
       } else {
         controle.getRange(linha, COL_CTRL.SITUACAO).setValue(novoStatus);
         controle.getRange(linha, COL_CTRL.STATUS).setValue(novoStatus + (sol.tipo === "LIDER" ? " pelo gerente em " : " pelo gestor em ") + fmt_(new Date()));
@@ -232,16 +232,70 @@ function registrarDecisao(id, token, acao, comentario, novoInicioIso, novoFimIso
       }
     }
 
-    const conflitos = encontrarConflitos_(sol.nome, sol.inicio, sol.fim, listarPeriodosAtivos_(controle, linha));
-    notificarDecisaoSolicitante_(sol, acao, comentario, novasDatas, conflitos);
-    notificarDecisaoEnvolvidos_(sol, acao, conflitos);
+    SpreadsheetApp.flush();
+    // Agenda, e-mails e aba de conflitos são lentos: rodam logo depois, em segundo plano,
+    // para a página de aprovação responder na hora.
+    const tarefa = { id: sol.id, acao: acao, comentario: comentario,
+      novasDatas: novasDatas ? { inicio: iso_(novasDatas.inicio), fim: iso_(novasDatas.fim) } : null };
+    if (!agendarPosDecisao_(tarefa)) {
+      executarPosDecisao_(tarefa);
+      try { atualizarAbaControleConflitosSemEmail_(); } catch (e) { Logger.log(e); }
+    }
 
-    try { atualizarAbaControleConflitosSemEmail_(); } catch (e) { Logger.log(e); }
-
-    return "✅ Decisão registrada: " + novoStatus + ". O colaborador e os envolvidos foram avisados.";
+    return "✅ Decisão registrada: " + novoStatus + ". A agenda e os avisos por e-mail são atualizados em instantes.";
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------- Pós-decisão em segundo plano ----------
+const FILA_POS_DECISAO = "FILA_POS_DECISAO";
+
+function agendarPosDecisao_(tarefa) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const fila = JSON.parse(props.getProperty(FILA_POS_DECISAO) || "[]");
+    fila.push(tarefa);
+    props.setProperty(FILA_POS_DECISAO, JSON.stringify(fila));
+    const jaTem = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === "processarPosDecisao");
+    if (!jaTem) ScriptApp.newTrigger("processarPosDecisao").timeBased().after(5 * 1000).create();
+    return true;
+  } catch (e) {
+    Logger.log("Sem segundo plano, executando na hora: " + e.message);
+    try { // tira da fila para não executar duas vezes
+      const props = PropertiesService.getScriptProperties();
+      const fila = JSON.parse(props.getProperty(FILA_POS_DECISAO) || "[]").filter(t => t.id !== tarefa.id);
+      props.setProperty(FILA_POS_DECISAO, JSON.stringify(fila));
+    } catch (e2) {}
+    return false;
+  }
+}
+
+// Gatilho único: processa a fila e se apaga
+function processarPosDecisao() {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  let fila = [];
+  try {
+    const props = PropertiesService.getScriptProperties();
+    fila = JSON.parse(props.getProperty(FILA_POS_DECISAO) || "[]");
+    props.deleteProperty(FILA_POS_DECISAO);
+    ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === "processarPosDecisao").forEach(t => ScriptApp.deleteTrigger(t));
+  } finally { lock.releaseLock(); }
+  fila.forEach(t => { try { executarPosDecisao_(t); } catch (e) { Logger.log("Pós-decisão " + t.id + ": " + e.message); } });
+  if (fila.length) { try { atualizarAbaControleConflitosSemEmail_(); } catch (e) { Logger.log(e); } }
+}
+
+function executarPosDecisao_(t) {
+  const sol = buscarSolicitacao_(t.id);
+  if (!sol) return;
+  const controle = planilha_().getSheetByName(CONFIG_APROVACAO.abaControle);
+  const linha = localizarLinhaControle_(controle, sol);
+  if (t.acao === "APROVAR" && linha) aoAprovarFerias_(controle, linha, sol);
+  const novasDatas = t.novasDatas ? { inicio: parseData_(t.novasDatas.inicio), fim: parseData_(t.novasDatas.fim) } : null;
+  const conflitos = encontrarConflitos_(sol.nome, sol.inicio, sol.fim, listarPeriodosAtivos_(controle, linha));
+  notificarDecisaoSolicitante_(sol, t.acao, t.comentario, novasDatas, conflitos);
+  notificarDecisaoEnvolvidos_(sol, t.acao, conflitos);
 }
 
 // Ao aprovar: espelha no Calendar do mesmo jeito que o painel faz
