@@ -35,7 +35,9 @@ jobs:
         run: echo "{\"scriptId\":\"${{ secrets.SCRIPT_ID }}\",\"rootDir\":\"src\"}" > .clasp.json
 
       - name: Gerar URL do App da Web
-        run: echo "const URL_WEBAPP_APROVACAO = \"https://script.google.com/macros/s/${{ secrets.DEPLOYMENT_ID }}/exec\";" > src/ConfigDeploy.js
+        run: |
+          echo "const URL_WEBAPP_APROVACAO = \"https://script.google.com/macros/s/${{ secrets.DEPLOYMENT_ID }}/exec\";" > src/ConfigDeploy.js
+          echo "const VERSAO_CODIGO = \"${{ github.sha }}\";" >> src/ConfigDeploy.js
 
       - run: clasp push --force
 

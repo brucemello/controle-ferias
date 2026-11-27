@@ -355,6 +355,7 @@
   </aside>
 
   <main class="main">
+    <div id="avisoVersao" class="status-box warn hide" style="margin-bottom:14px"></div>
     <div class="top">
       <div>
         <h1 id="titulo">Visão geral</h1>
@@ -1619,6 +1620,20 @@ function alternarAuto(){
 }
 
 carregar();
+
+// Link do App da Web: avisa quando a implantação está numa versão antiga do código
+setTimeout(function(){
+  try{
+    if(!window.MODO_WEB || !window.VERSAO_CODIGO) return;
+    fetch("https://api.github.com/repos/brucemello/controle-ferias/commits?path=src&per_page=1")
+      .then(function(r){return r.json();}).then(function(c){
+        if(!c||!c[0]||!c[0].sha||c[0].sha===window.VERSAO_CODIGO) return;
+        var el=document.getElementById("avisoVersao");
+        el.innerHTML='<i class="fa-solid fa-circle-up"></i> <b>Este link está numa versão antiga.</b> Quem publicou o App da Web precisa atualizar: na planilha, <b>Extensões → Apps Script → Implantar → Gerenciar implantações</b> → lápis ✏️ → Versão: <b>Nova versão</b> → <b>Implantar</b>. O link continua o mesmo. (Pelo menu Apoio Gestão da planilha o dashboard já abre atualizado.)';
+        el.classList.remove("hide");
+      }).catch(function(){});
+  }catch(e){}
+},1500);
 </script>
 <div id="mCanc" class="mcanc hide"><div class="box">
   <h3><i class="fa-solid fa-ban" style="color:var(--red)"></i> Cancelar férias</h3>

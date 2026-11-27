@@ -20,6 +20,7 @@ function doGetDashboard_() {
     return paginaSimples_("Acesso pelo link restrito", "Abra o Dashboard de Férias pelo menu Apoio Gestão da planilha do time.");
   }
   return HtmlService.createHtmlOutputFromFile("dashboard")
+    .append("<script>window.VERSAO_CODIGO=" + JSON.stringify(typeof VERSAO_CODIGO !== "undefined" ? VERSAO_CODIGO : "") + ";</script>")
     .append("<script>window.MODO_WEB=true;document.querySelectorAll('.so-dialogo').forEach(function(el){el.style.display='none';});</script>")
     .setTitle("Controle de Férias · " + nomeSquad_())
     .addMetaTag("viewport", "width=device-width, initial-scale=1");
