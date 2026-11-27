@@ -36,7 +36,7 @@ jobs:
           AT=$(curl -s https://oauth2.googleapis.com/token -d client_id=$CID -d client_secret=$CSE -d refresh_token=$RT -d grant_type=refresh_token | jq -r .access_token)
           echo "::add-mask::$AT"
           echo "== Projeto =="
-          curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO | jq '{title, parentId, updateTime, creator: .creator.email, lastModifyUser: .lastModifyUser.email}'
+          curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO | jq '{title, parentId, updateTime}'
           echo "== Versões =="
           curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO/versions | jq '.versions[]? | {versionNumber, createTime}'
           echo "== Implantações =="
