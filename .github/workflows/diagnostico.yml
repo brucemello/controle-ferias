@@ -41,3 +41,21 @@ jobs:
           curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO/versions | jq '.versions[]? | {versionNumber, createTime}'
           echo "== Implantações =="
           curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO/deployments | jq '.deployments[]? | {v: .deploymentConfig.versionNumber, updateTime, id_fim: (.deploymentId[-6:]), web: [.entryPoints[]?.webApp.entryPointConfig]}'
+      - name: Conteúdo atual e da versão 2 (marcadores)
+        env:
+          MODELO: ${{ secrets.SCRIPT_ID_MODELO }}
+        run: |
+          F=~/.clasprc.json
+          CID=$(jq -r '.oauth2ClientSettings.clientId // .tokens.default.client_id // empty' $F)
+          CSE=$(jq -r '.oauth2ClientSettings.clientSecret // .tokens.default.client_secret // empty' $F)
+          RT=$(jq -r '.token.refresh_token // .tokens.default.refresh_token // empty' $F)
+          AT=$(curl -s https://oauth2.googleapis.com/token -d client_id=$CID -d client_secret=$CSE -d refresh_token=$RT -d grant_type=refresh_token | jq -r .access_token)
+          echo "::add-mask::$AT"
+          for V in "" "?versionNumber=2"; do
+            echo "== content $V =="
+            curl -s -H "Authorization: Bearer $AT" "https://script.googleapis.com/v1/projects/$MODELO/content$V" > c.json
+            jq -r '.files[] | "\(.name) \(.source|length)"' c.json
+            for M in VERSAO_CODIGO avisoVersao reenviarSolicitacao cancelarFerias propsCache_ notificarSubstituto_; do
+              printf "%s: " $M; jq -r '[.files[].source] | join(" ")' c.json | grep -c "$M" || true
+            done
+          done
