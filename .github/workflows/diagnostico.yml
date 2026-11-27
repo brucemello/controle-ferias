@@ -1,0 +1,27 @@
+name: Diagnóstico implantações do modelo
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install -g @google/clasp
+      - name: Credenciais
+        env:
+          CLASPRC: ${{ secrets.CLASPRC_JSON }}
+        run: echo "$CLASPRC" > ~/.clasprc.json
+      - name: Listar implantações (IDs abreviados)
+        env:
+          MODELO: ${{ secrets.SCRIPT_ID_MODELO }}
+        run: |
+          mkdir p && cd p
+          echo "{\"scriptId\":\"$MODELO\"}" > .clasp.json
+          echo "== Implantações =="
+          clasp deployments 2>&1 | sed -E 's/(AKfy[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+([A-Za-z0-9_-]{6})/\1…\2/g'
+          echo "== Versões (últimas) =="
+          clasp versions 2>&1 | tail -n 8
