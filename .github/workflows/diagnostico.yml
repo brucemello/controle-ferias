@@ -25,3 +25,19 @@ jobs:
           clasp deployments 2>&1 | sed -E 's/(AKfy[A-Za-z0-9_-]{4})[A-Za-z0-9_-]+([A-Za-z0-9_-]{6})/\1…\2/g'
           echo "== Versões (últimas) =="
           clasp versions 2>&1 | tail -n 8
+      - name: Projeto (planilha vinculada) e datas das versões
+        env:
+          MODELO: ${{ secrets.SCRIPT_ID_MODELO }}
+        run: |
+          F=~/.clasprc.json
+          CID=$(jq -r '.oauth2ClientSettings.clientId // .tokens.default.client_id // empty' $F)
+          CSE=$(jq -r '.oauth2ClientSettings.clientSecret // .tokens.default.client_secret // empty' $F)
+          RT=$(jq -r '.token.refresh_token // .tokens.default.refresh_token // empty' $F)
+          AT=$(curl -s https://oauth2.googleapis.com/token -d client_id=$CID -d client_secret=$CSE -d refresh_token=$RT -d grant_type=refresh_token | jq -r .access_token)
+          echo "::add-mask::$AT"
+          echo "== Projeto =="
+          curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO | jq '{title, parentId, updateTime, creator: .creator.email, lastModifyUser: .lastModifyUser.email}'
+          echo "== Versões =="
+          curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO/versions | jq '.versions[]? | {versionNumber, createTime}'
+          echo "== Implantações =="
+          curl -s -H "Authorization: Bearer $AT" https://script.googleapis.com/v1/projects/$MODELO/deployments | jq '.deployments[]? | {v: .deploymentConfig.versionNumber, updateTime, id_fim: (.deploymentId[-6:]), web: [.entryPoints[]?.webApp.entryPointConfig]}'
